@@ -1,0 +1,995 @@
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[brazil]{babel}
+\usepackage{lmodern}
+\usepackage{textcomp}
+\usepackage[a4paper,margin=2.5cm,headheight=25pt]{geometry}
+\usepackage{amsmath,amssymb,amsthm}
+\usepackage{booktabs}
+\usepackage{graphicx}
+\usepackage{float}
+\usepackage{longtable}
+\usepackage{array}
+\usepackage{tabularx}
+\newcolumntype{L}[1]{>{\raggedright\arraybackslash}p{#1}}
+\usepackage[table]{xcolor}
+\usepackage{listings}
+\usepackage{titlesec}
+\usepackage{tikz}
+\usepackage{eso-pic}
+\usepackage{pdflscape}
+\usepackage{fancyhdr}
+\usepackage[most]{tcolorbox}
+\graphicspath{{figuras/}}
+
+% --- Paleta de cores do documento ------------------------------------
+\definecolor{linkblue}{RGB}{60,110,170}    % azul claro, reservado a links/URLs reais (não à navegação interna)
+
+% --- Identidade visual da EACH-USP ------------------------------------
+% Tons extraídos do símbolo oficial da EACH (rosácea em três cores).
+% Aplicados apenas a elementos gráficos (fios, faixas, marcadores,
+% molduras); títulos, texto corrido e links mantêm suas cores.
+\definecolor{eachTeal}{RGB}{2,153,186}     % azul-petróleo (quadrante superior esquerdo)
+\definecolor{eachCyan}{RGB}{41,192,224}    % azul-ciano (quadrante inferior)
+\definecolor{eachOrange}{RGB}{249,157,15}  % laranja (quadrante direito)
+
+% --- Estilo das tabelas: identidade visual da EACH-USP ----------------
+\colorlet{tabCabecalho}{eachTeal}        % faixa do cabeçalho (azul-petróleo)
+\colorlet{tabZebra}{eachCyan!12}         % linhas alternadas (ciano bem claro)
+\colorlet{tabFio}{eachOrange}            % fio laranja sob o cabeçalho
+\definecolor{verdeVantagem}{HTML}{16803C}
+\definecolor{vermelhoDesvantagem}{HTML}{C62828}
+\renewcommand{\arraystretch}{1.15}
+% Fios do booktabs em azul-petróleo e sem respiro branco ao redor, para
+% que as faixas coloridas (cabeçalho e zebra) encostem nos fios.
+\AtBeginDocument{\arrayrulecolor{eachTeal}}
+\setlength{\aboverulesep}{0pt}
+\setlength{\belowrulesep}{0pt}
+\setlength{\extrarowheight}{1.5pt}
+% Célula de cabeçalho: texto branco em negrito sobre azul-petróleo
+\newcommand{\cab}[1]{\leavevmode\color{white}\bfseries #1}
+% Fio laranja (tricolor EACH) separando cabeçalho e corpo da tabela
+\newcommand{\fioCabecalho}{\arrayrulecolor{tabFio}\specialrule{1.2pt}{0pt}{0pt}\arrayrulecolor{eachTeal}}
+
+% Links de navegação interna (sumário, referências cruzadas, citações)
+% permanecem pretos, como em um relatório impresso; apenas URLs/arquivos
+% externos usam o azul claro.
+\usepackage[
+	colorlinks=true,
+	linkcolor=black,
+	citecolor=black,
+	urlcolor=linkblue,
+	filecolor=linkblue,
+	linktoc=all
+]{hyperref}
+\usepackage{url}
+% URLs: além da cor azul, ganham sublinhado. Cada segmento entre "/" é
+% sublinhado individualmente com \underline e separado por um ponto de
+% quebra (\allowbreak), de modo que o sublinhado sobrevive à quebra de
+% linha. \vphantom{Ag} mantém o sublinhado na mesma altura em toda a
+% extensão da URL.
+\newcommand{\segurl}[1]{\underline{\vphantom{Ag}#1}\hspace{0pt}}
+\newcommand{\urlPrimFeofiloff}{\href{https://users.ime.usp.br/~pf/algoritmos_para_grafos/aulas/prim.html}{\ttfamily\color{linkblue}\segurl{https://users.ime.usp.br/}\allowbreak\segurl{\textasciitilde pf/}\allowbreak\segurl{algoritmos\_para\_grafos/}\allowbreak\segurl{aulas/}\allowbreak\segurl{prim.html}}}
+\newcommand{\urlGeeks}{\href{https://www.geeksforgeeks.org/dsa/approximate-solution-for-travelling-salesman-problem-using-mst/}{\ttfamily\color{linkblue}\segurl{https://www.geeksforgeeks.org/}\allowbreak\segurl{dsa/}\allowbreak\segurl{approximate-}\allowbreak\segurl{solution-}\allowbreak\segurl{for-}\allowbreak\segurl{travelling-}\allowbreak\segurl{salesman-}\allowbreak\segurl{problem-}\allowbreak\segurl{using-}\allowbreak\segurl{mst/}}}
+\newcommand{\urlWikiPrim}{\href{https://en.wikipedia.org/wiki/Prim\%27s_algorithm}{\ttfamily\color{linkblue}\segurl{https://en.wikipedia.org/}\allowbreak\segurl{wiki/}\allowbreak\segurl{Prim\%27s\_algorithm}}}
+\newcommand{\urlLogoEACH}{\href{https://commons.wikimedia.org/wiki/File:Logo-each-usp.jpg}{\ttfamily\color{linkblue}\segurl{https://commons.wikimedia.org/}\allowbreak\segurl{wiki/}\allowbreak\segurl{File:Logo-each-usp.jpg}}}
+
+% Fio tricolor da EACH (azul-petróleo / ciano / laranja, em terços
+% iguais) na largura da linha. #1 = espessura.
+\newcommand{\fioEACH}[1]{%
+  \hbox to\linewidth{%
+    {\color{eachTeal}\leaders\hrule height #1\hfill}%
+    {\color{eachCyan}\leaders\hrule height #1\hfill}%
+    {\color{eachOrange}\leaders\hrule height #1\hfill}}}
+
+% Títulos de seção: tipografia preta tradicional (texto sem cor). A
+% identidade da EACH entra só nos elementos gráficos: fio tricolor sob
+% \section e pequenos marcadores na margem de \subsection/\subsubsection.
+\newcommand{\marcaSub}{\llap{\textcolor{eachTeal}{\rule[-0.15em]{3pt}{1.05em}}\hspace{7pt}}}
+\newcommand{\marcaSubsub}{\llap{\textcolor{eachOrange}{\rule[0.05em]{0.5em}{0.5em}}\hspace{6pt}}}
+\titleformat{\section}
+	{\normalfont\Large\bfseries}{\thesection}{0.8em}{}
+	[{\vspace{2pt}\fioEACH{0.9pt}}]
+\titleformat{\subsection}{\normalfont\large\bfseries}{\marcaSub\thesubsection}{0.8em}{}
+\titleformat{name=\subsection,numberless}{\normalfont\large\bfseries}{}{0pt}{\marcaSub}
+\titleformat{\subsubsection}{\normalfont\normalsize\bfseries\itshape}{\marcaSubsub\thesubsubsection}{0.8em}{}
+\titleformat{name=\subsubsection,numberless}{\normalfont\normalsize\bfseries\itshape}{}{0pt}{\marcaSubsub}
+
+% Cabeçalho e rodapé das páginas internas: logo da EACH à esquerda,
+% identificação do EP à direita (texto preto), fio tricolor sob o
+% cabeçalho e número de página centralizado.
+\fancypagestyle{each}{%
+  \fancyhf{}%
+  \fancyhead[L]{\raisebox{-0.25\height}{\includegraphics[height=0.62cm]{logo_each_horizontal.jpg}}}%
+  \fancyhead[R]{\small EP3 --- Introdução à Análise de Algoritmos}%
+  \fancyfoot[C]{\thepage}%
+  \renewcommand{\headrulewidth}{1pt}%
+  \renewcommand{\footrulewidth}{0pt}%
+  \renewcommand{\headrule}{\vspace{-3pt}\hbox to\headwidth{%
+      {\color{eachTeal}\leaders\hrule height 1pt\hfill}%
+      {\color{eachCyan}\leaders\hrule height 1pt\hfill}%
+      {\color{eachOrange}\leaders\hrule height 1pt\hfill}}}%
+}
+\fancypagestyle{plain}{\pagestyle{each}}
+\pagestyle{each}
+
+% Marcadores de lista nas cores da EACH (os itens seguem em preto)
+\renewcommand{\labelitemi}{\textcolor{eachTeal}{\textbullet}}
+\renewcommand{\labelitemii}{\textcolor{eachOrange}{\textendash}}
+\renewcommand{\labelenumi}{\textcolor{eachTeal}{\bfseries\arabic{enumi}.}}
+
+\lstset{
+  basicstyle=\ttfamily\small,
+  keywordstyle=\color{blue!60!black}\bfseries,
+  commentstyle=\color{green!40!black}\itshape,
+  stringstyle=\color{red!60!black},
+  % Moldura: barra azul-petróleo à esquerda e fundo ciano bem claro
+  frame=l,
+  framerule=2.5pt,
+  rulecolor=\color{eachTeal},
+  backgroundcolor=\color{eachCyan!6},
+  framesep=6pt,
+  xleftmargin=9pt,
+  aboveskip=10pt,
+  belowskip=8pt,
+  breaklines=true,
+  columns=fullflexible,
+  keepspaces=true,
+  showstringspaces=false,
+  literate={á}{{\'a}}1 {é}{{\'e}}1 {í}{{\'i}}1 {ó}{{\'o}}1 {ú}{{\'u}}1
+           {ã}{{\~a}}1 {õ}{{\~o}}1 {ç}{{\c c}}1 {â}{{\^a}}1 {ê}{{\^e}}1 {ô}{{\^o}}1 {à}{{\`a}}1
+           {Á}{{\'A}}1 {É}{{\'E}}1 {Ç}{{\c C}}1 {Ã}{{\~A}}1
+}
+
+% Quebra de linha em nomes de arquivo: permite quebrar depois de "_" (e, no
+% texto, depois de "/" via \barra) dentro de \texttt, sem inserir hífen.
+\newcommand{\barra}{/\allowbreak}
+\let\underscoreoriginal\_
+\renewcommand{\_}{\underscoreoriginal\allowbreak}
+\setlength{\emergencystretch}{3em}
+
+\newtheorem*{teorema}{Teorema}
+% Teorema em caixa com barra azul-petróleo e fundo ciano claro;
+% demonstração marcada por um fio laranja à esquerda.
+\tcolorboxenvironment{teorema}{enhanced, breakable, arc=0pt, outer arc=0pt,
+  colback=eachCyan!7, colframe=eachTeal, boxrule=0pt, leftrule=3pt,
+  left=8pt, right=8pt, top=4pt, bottom=4pt, before skip=10pt, after skip=6pt}
+\tcolorboxenvironment{proof}{blanker, breakable, left=10pt,
+  borderline west={1.2pt}{0pt}{eachOrange}, before skip=6pt, after skip=10pt}
+\renewcommand{\qedsymbol}{\textcolor{eachTeal}{$\blacksquare$}}
+
+% Inclui a figura apenas se o arquivo existir
+% #1 = arquivo, #2 = legenda, #3 = rótulo, #4 = fonte (só na legenda)
+\newcommand{\figuraopcional}[4]{%
+  \IfFileExists{#1}{%
+    \begin{figure}[H]
+      \centering
+      \includegraphics[width=0.82\textwidth]{#1}
+      \caption[#2]{#2 #4}
+      \label{#3}
+    \end{figure}%
+  }{%
+    \begin{center}\fbox{\parbox{0.8\textwidth}{\centering\small
+      Figura pendente: \texttt{\detokenize{#1}}\\ (#2)}}\end{center}%
+  }%
+}
+
+% Faixa tricolor da EACH (azul-petróleo / ciano / laranja)
+\newcommand{\faixaEACH}[2]{% #1 = largura, #2 = espessura
+  \begin{tikzpicture}
+    \fill[eachTeal]   (0,0) rectangle (#1/3,#2);
+    \fill[eachCyan]   (#1/3,0) rectangle (2*#1/3,#2);
+    \fill[eachOrange] (2*#1/3,0) rectangle (#1,#2);
+  \end{tikzpicture}%
+}
+
+\begin{document}
+
+% ======================================================================
+% CAPA
+% ======================================================================
+% Símbolo da EACH como marca-d'água discreta no canto inferior direito
+% e faixa tricolor no rodapé -- únicos elementos de identidade visual
+% institucional; o restante segue a capa do modelo.
+\AddToShipoutPictureBG*{%
+  \AtPageLowerLeft{%
+    \begin{tikzpicture}[remember picture,overlay]
+      \node[opacity=0.07,anchor=south east,inner sep=0pt]
+        at ([xshift=4.5cm,yshift=-4.5cm]current page.south east)
+        {\includegraphics[width=13cm]{logo_each.png}};
+      \fill[eachTeal]   (current page.south west) rectangle ++(\paperwidth/3,0.35cm);
+      \fill[eachCyan]   ([xshift=\paperwidth/3]current page.south west) rectangle ++(\paperwidth/3,0.35cm);
+      \fill[eachOrange] ([xshift=2\paperwidth/3]current page.south west) rectangle ++(\paperwidth/3,0.35cm);
+    \end{tikzpicture}%
+  }%
+}
+
+% Páginas internas: faixa tricolor fina na borda inferior (eco da capa).
+% Definida aqui, antes da capa ser enviada, mas a capa já tem a sua
+% faixa mais grossa no mesmo lugar, que a encobre.
+\AddToShipoutPictureBG{%
+  \AtPageLowerLeft{%
+    \begin{tikzpicture}[remember picture,overlay]
+      \fill[eachTeal]   (current page.south west) rectangle ++(\paperwidth/3,0.18cm);
+      \fill[eachCyan]   ([xshift=\paperwidth/3]current page.south west) rectangle ++(\paperwidth/3,0.18cm);
+      \fill[eachOrange] ([xshift=2\paperwidth/3]current page.south west) rectangle ++(\paperwidth/3,0.18cm);
+    \end{tikzpicture}%
+  }%
+}
+
+\begin{titlepage}
+	\centering
+	\vspace*{0.2cm}
+	\includegraphics[width=0.52\textwidth]{logo_each_horizontal.jpg}\par
+	\vspace{0.7cm}
+	{\large UNIVERSIDADE DE SÃO PAULO\par}
+	{\large ESCOLA DE ARTES, CIÊNCIAS E HUMANIDADES\par}
+	\vspace{0.2cm}
+	{\normalsize Bacharelado em Sistemas de Informação\par}
+
+	\vfill
+
+	{\Huge\bfseries Problema do Caixeiro Viajante\par}
+	\vspace{0.35cm}
+	\faixaEACH{0.4\linewidth}{0.6pt}\par
+	\vspace{0.35cm}
+	{\Large\itshape Implementação dos Algoritmos de Prim e Double Tree\par}
+	\vspace{0.6cm}
+	{\large EP3 --- Introdução à Análise de Algoritmos\par}
+
+	\vfill
+
+	{\large\bfseries Igor Fernando Casita Ferreira da Silva - 18245598\par}
+	{\large\bfseries Matheus Resende Rodriguez - 17967491\par}
+	{\large\bfseries Ezequiel Melo Nogueira - 17829725\par}
+	{\large\bfseries Guilherme Costa - 17840990\par}
+
+	\vspace{1.2cm}
+
+	{\normalsize Docente responsável: Prof.\ Dr.\ Fabio Nakano\par}
+
+	\vfill
+
+	{\normalsize São Paulo\par}
+	{\normalsize Novembro de 2026\par}
+	\vspace*{1cm}
+\end{titlepage}
+
+\tableofcontents
+\listoffigures
+\listoftables
+\newpage
+
+%======================================================================
+\setcounter{section}{-1}
+\section{Contexto, Definições e Objetivo}
+%======================================================================
+
+\subsection{Contexto}
+
+O Problema do Caixeiro Viajante (PCV) consiste em encontrar um ciclo de
+menor comprimento que visite cada cidade exatamente uma vez e retorne à
+cidade inicial. Neste trabalho, as cidades são representadas por pontos
+no plano, e o custo entre duas cidades é a distância euclidiana.
+
+Encontrar uma rota ótima para o PCV é um problema computacionalmente
+difícil. Por isso, são estudadas estratégias que produzem rotas válidas
+com custos potencialmente próximos do ótimo, sem precisar examinar todas
+as permutações possíveis.
+
+\subsection{Definições}
+
+\begin{description}
+  \item[Algoritmo proposto:] Prim seguido da heurística Double Tree
+    (Seções~\ref{sec:prim} e~\ref{sec:doubletree}).
+  \item[Algoritmo de referência:] guloso do vizinho mais próximo
+    (Seção~\ref{sec:guloso}). \textbf{Não é o algoritmo proposto}: serve
+    apenas como métrica de comparação para o Double Tree + Prim e não
+    deve ser avaliado.
+  \item[Grupo:] Matheus Resende (implementação do código), Guilherme
+    Costa (implementação e pesquisa), Ezequiel Nogueira (pesquisa e
+    relatório) e Igor Cassita (relatório).
+\end{description}
+
+\subsection{Objetivo}
+
+Este relatório descreve a implementação de uma solução baseada na árvore
+geradora mínima (MST) obtida pelo algoritmo de Prim e na heurística
+Double Tree. Em seguida, apresenta o algoritmo guloso do vizinho mais
+próximo, utilizado como referência experimental. Por fim, são descritos
+os testes em cinco distribuições geométricas, seus resultados e uma
+análise comparativa (Seção~\ref{sec:resultados}).
+
+\subsection{Organização dos Arquivos}
+
+\begin{lstlisting}
+EP3/
+|-- relatorio_double_tree.pdf / .tex  # este Relatorio
+|-- README.md                         # compilacao, grupo e ambiente
+|-- ep3.h                             # estruturas Cidades, MST, Rota, Node
+|-- primEP3.c                         # algoritmo de Prim (MST)
+|-- doubleTreeEP3.c                   # Double Tree, DFS e custo da rota
+|-- gulosoNAOEOPRINCIPAL.c            # vizinho mais proximo (referencia)
+|-- comparacaoEntreOsDois.c           # programa de comparacao
+|-- testeEP3.c                        # testes
+`-- figuras/                          # graficos e identidade visual
+\end{lstlisting}
+
+%======================================================================
+\section{Fundamentação Teórica}
+%======================================================================
+
+\subsection{Representação do problema}
+\label{sec:representacao}
+
+Cada cidade é representada por um par de coordenadas $(x,y)$. O custo
+de deslocamento entre as cidades $u$ e $v$ é
+\[
+  d(u,v)=\sqrt{(x_u-x_v)^2+(y_u-y_v)^2}.
+\]
+
+Como a distância euclidiana é não negativa, simétrica e satisfaz a
+desigualdade triangular, ela define uma métrica. A desigualdade
+triangular estabelece que, para quaisquer três pontos $u$, $v$ e $w$,
+\[
+  d(u,w)\leq d(u,v)+d(v,w).
+\]
+Essa propriedade é essencial para a garantia teórica do Double Tree.
+
+Na representação utilizada, a estrutura \texttt{Cidades} armazena as
+coordenadas e a quantidade efetiva de cidades. A estrutura \texttt{MST}
+armazena o vetor de pais da árvore e o peso total da árvore. A estrutura
+\texttt{Rota} armazena a sequência de cidades, seu tamanho e a distância
+total do ciclo.
+
+\subsection{Algoritmo de Prim}
+\label{sec:prim}
+
+\textbf{Classe:} algoritmo guloso para árvore geradora mínima, sobre
+grafo conexo, não direcionado e ponderado.
+
+\subsubsection*{Objetivo}
+
+O algoritmo de Prim constrói uma árvore geradora mínima de um grafo
+conexo e não direcionado com pesos nas arestas. Uma árvore geradora
+conecta todos os vértices, não possui ciclos e contém exatamente $n-1$
+arestas. Uma árvore geradora mínima é aquela cuja soma dos pesos das
+arestas é a menor possível.
+
+Para o PCV euclidiano, considera-se o grafo completo: cada cidade pode
+ser conectada a qualquer outra, e o peso da aresta é a distância
+euclidiana entre elas.
+
+\subsubsection*{Implementação (\texttt{primEP3.c})}
+
+A função \texttt{Prim} mantém três informações principais:
+
+\begin{itemize}
+  \item \texttt{cidadesVisitadas}: indica quais vértices já foram
+    incorporados à árvore;
+  \item \texttt{menorDistancia}: para cada vértice ainda não
+    incorporado, guarda o menor custo conhecido de uma aresta que o
+    conecta à árvore atual;
+  \item \texttt{pai}: registra qual vértice da árvore fornece essa
+    conexão mínima. O vetor de pais representa a árvore resultante.
+\end{itemize}
+
+A construção começa pela cidade de índice zero. Inicialmente, as demais
+cidades têm como melhor conexão conhecida a aresta que as liga à cidade
+inicial. Em cada iteração, o algoritmo procura, entre as cidades ainda
+não visitadas, aquela com menor valor em \texttt{menorDistancia}. Essa
+cidade é incorporada à árvore.
+
+Depois da inclusão, o algoritmo percorre as cidades restantes e verifica
+se a conexão com o novo vértice é mais barata que a melhor conexão
+anteriormente conhecida. Quando isso ocorre, atualiza tanto a menor
+distância quanto o pai da cidade.
+
+O processo é repetido até que todas as cidades tenham sido incorporadas.
+O vetor de pais descreve então uma MST.
+
+\begin{lstlisting}[language=C]
+for (int k = 1; k < cidadesArr->numCidades; k++) {
+  j = -1;
+  double menor = DBL_MAX;
+  for (i = 0; i < cidadesArr->numCidades; i++) {  /* proximo vertice */
+    double distancia = menorDistancia[i];
+    if (cidadesVisitadas[i] != 1 && menor > distancia) {
+      menor = distancia;
+      j = i;
+    }
+  }
+  cidadesVisitadas[j] = 1;
+  for (i = 0; i < cidadesArr->numCidades; i++) {  /* atualizacao */
+    double distancia = euclideanDisSquared(cidadesArr->cidades[j],
+                                           cidadesArr->cidades[i]);
+    if (cidadesVisitadas[i] != 1 && distancia < menorDistancia[i]) {
+      menorDistancia[i] = distancia;
+      minimumSTree->pai[i] = j;
+    }
+  }
+}
+\end{lstlisting}
+
+\textbf{Complexidade temporal:} na implementação apresentada, a busca
+pelo próximo vértice percorre o vetor de cidades. A atualização das
+menores distâncias também percorre esse vetor. Essas duas varreduras são
+realizadas para cada uma das $n$ cidades. Assim, o tempo total é
+\[
+  T_{\text{Prim}}(n)=O(n^2).
+\]
+Essa é a implementação de Prim por matriz implícita de distâncias, sem
+uma fila de prioridade. Como o grafo é completo, a quantidade de arestas
+é $\Theta(n^2)$.
+
+\textbf{Complexidade espacial:} a implementação mantém vetores de
+tamanho proporcional ao número de cidades: cidades visitadas, menores
+distâncias e pais. Portanto, a memória auxiliar utilizada por Prim é
+\[
+  S_{\text{Prim}}(n)=O(n).
+\]
+A representação das coordenadas também ocupa espaço linear no número de
+cidades efetivamente utilizadas.
+
+\subsection{Double Tree}
+\label{sec:doubletree}
+
+\textbf{Classe:} heurística de aproximação para o PCV métrico, baseada
+em árvore geradora mínima.
+
+\subsubsection*{Ideia geral}
+
+A heurística Double Tree utiliza a MST para construir uma rota do PCV. O
+nome está relacionado à ideia de duplicar as arestas da árvore: ao
+percorrer cada aresta da árvore duplicada, existe um passeio fechado que
+visita todos os vértices.
+
+A implementação não precisa materializar explicitamente todas as arestas
+duplicadas nem armazenar o passeio completo. Ela utiliza a árvore
+representada pelo vetor de pais, constrói listas de filhos e realiza uma
+busca em profundidade (DFS) para obter uma ordem de visita.
+
+\subsubsection*{Implementação (\texttt{doubleTreeEP3.c})}
+
+\begin{description}
+  \item[\texttt{Prim}:] é chamada por \texttt{doubleTree} para obter a
+    árvore geradora mínima. Seu resultado contém o vetor de pais, que
+    permite reconstruir a relação entre os vértices da árvore.
+  \item[\texttt{doubleTree}:] coordena a construção da rota. Primeiro,
+    obtém a MST. Em seguida, cria um vetor de listas de filhos: para cada
+    cidade diferente da raiz, cria um nó e o insere na lista
+    correspondente ao seu pai. Depois aloca a estrutura da rota, chama a
+    DFS para preencher a ordem de visita e calcula o comprimento do
+    ciclo. Ao final, libera as estruturas auxiliares da árvore e retorna
+    a rota.
+  \item[\texttt{DFS}:] a busca em profundidade é iterativa e utiliza uma
+    pilha. A cidade zero é registrada primeiro. Seus filhos são colocados
+    na pilha; a cada remoção, a cidade correspondente é acrescentada à
+    ordem de visita e seus próprios filhos são empilhados. Como cada
+    vértice da árvore possui um único pai, cada cidade é inserida e
+    visitada uma única vez.
+  \item[\texttt{calcularDistanciaTotal}:] percorre a sequência produzida
+    pela DFS, soma as distâncias entre cidades consecutivas e, ao final,
+    soma também a distância entre a última cidade e a primeira. Essa
+    última operação fecha o ciclo e transforma a sequência em uma rota do
+    PCV.
+\end{description}
+
+\begin{lstlisting}[language=C]
+void DFS(int numCidades, Node** filhos, int* visitasOrdem, int* k) {
+  Node** pilha = calloc(numCidades, sizeof(Node*));
+  int topo = 0;
+  visitasOrdem[(*k)++] = 0;              /* raiz: cidade 0 */
+  Node* p = filhos[0];
+  while (p) { pilha[topo++] = p; p = p->prox; }
+  while (topo != 0) {
+    Node* temp = pilha[--topo];
+    visitasOrdem[(*k)++] = temp->val;    /* pre-ordem = atalhos */
+    p = filhos[temp->val];
+    while (p) { pilha[topo++] = p; p = p->prox; }
+  }
+  free(pilha);
+}
+\end{lstlisting}
+
+\textbf{Complexidade temporal:} a etapa dominante é a execução de Prim,
+com custo $O(n^2)$. A criação das listas de filhos percorre o vetor de
+pais uma vez, custando $O(n)$. A DFS visita cada vértice e cada ligação
+da árvore uma vez, também custando $O(n)$. O cálculo da distância da
+rota percorre $n$ cidades, com custo $O(n)$. Logo,
+\[
+  T_{\text{Double Tree}}(n) = O(n^2)+O(n)+O(n)+O(n) = O(n^2).
+\]
+
+\textbf{Complexidade espacial:} além das coordenadas de entrada, a
+execução mantém os vetores de Prim, o vetor de listas de filhos, os
+$n-1$ nós que representam as relações pai-filho, a pilha da DFS e o
+vetor da rota. Cada uma dessas estruturas utiliza espaço linear.
+Portanto, a memória auxiliar total é
+\[
+  S_{\text{Double Tree}}(n)=O(n).
+\]
+
+\subsubsection*{Por que o Double Tree funciona: garantia teórica}
+
+\begin{teorema}[Double Tree é uma 2-aproximação para o PCV métrico]
+Seja $OPT$ o custo de uma rota ótima do PCV sobre uma métrica. A rota
+produzida pelo Double Tree satisfaz
+\[
+  w(\text{Double Tree})\leq 2w(MST)\leq 2\,OPT.
+\]
+\end{teorema}
+\begin{proof}[Demonstração]
+A garantia do Double Tree decorre de três propriedades.
+
+\begin{enumerate}
+  \item \textbf{A MST não é mais cara que uma rota ótima.} Removendo uma
+    aresta da rota ótima, obtém-se um caminho que conecta todas as
+    cidades e, portanto, uma árvore geradora. Como a MST é a árvore
+    geradora de menor peso, $w(MST)\leq OPT$.
+  \item \textbf{Duplicar as arestas da MST produz um passeio fechado.} Ao
+    duplicar cada aresta da árvore, todos os vértices passam a ter grau
+    par. É possível, então, percorrer um circuito fechado que utiliza
+    cada aresta duplicada uma vez. O custo desse passeio é
+    $2w(MST)\leq 2\,OPT$.
+  \item \textbf{O atalho entre vértices repetidos não aumenta o custo.}
+    O passeio pode passar mais de uma vez por uma cidade. Para obter uma
+    rota do PCV, eliminam-se as ocorrências repetidas, conectando
+    diretamente a cidade anterior à próxima cidade ainda não visitada.
+    Pela desigualdade triangular, essa substituição não aumenta a
+    distância total.
+\end{enumerate}
+Consequentemente, $w(\text{Double Tree})\leq 2w(MST)\leq 2\,OPT$.
+\end{proof}
+
+Assim, para o PCV métrico, o Double Tree é uma aproximação de fator~2:
+sua rota tem custo no máximo duas vezes o custo ótimo.
+
+A ordem de pré-ordem gerada pela DFS corresponde a esse processo de
+atalhos no passeio da árvore duplicada. A garantia depende da métrica, em
+particular da desigualdade triangular; ela não é uma garantia geral para
+custos arbitrários que não a satisfaçam.
+
+\subsection{Algoritmo guloso do vizinho mais próximo}
+\label{sec:guloso}
+
+\textbf{Classe:} heurística construtiva gulosa para o PCV
+(\textbf{algoritmo de referência}, não o proposto).
+
+O algoritmo do vizinho mais próximo começa em uma cidade (na
+implementação, a cidade de índice zero) e, a cada passo, escolhe a cidade
+ainda não visitada cuja distância até a cidade atual é mínima. A cidade
+escolhida passa a ser a posição atual, e o processo continua até que
+todas tenham sido visitadas. Por fim, a rota retorna à cidade inicial.
+
+A heurística é simples e produz uma rota válida quando todas as escolhas
+são realizadas. Entretanto, ela toma decisões locais: escolhe a melhor
+próxima cidade sem considerar necessariamente o efeito dessa escolha
+sobre o restante do percurso.
+
+\textbf{Complexidade temporal:} em cada um dos $n-1$ passos, a
+implementação percorre até $n$ cidades para encontrar a mais próxima.
+Portanto,
+\[
+  T_{\text{Guloso}}(n)=O(n^2).
+\]
+
+\textbf{Complexidade espacial:} o vetor de visitadas e o vetor da rota
+possuem tamanho proporcional a $n$, resultando em
+\[
+  S_{\text{Guloso}}(n)=O(n).
+\]
+
+Diferentemente do Double Tree, o vizinho mais próximo não possui, nesta
+forma geral, uma garantia de aproximação constante para o PCV métrico.
+Seu resultado depende da distribuição dos pontos e das decisões locais
+realizadas durante a construção.
+
+\subsection{Comparação teórica resumida}
+
+\begin{table}[H]
+\centering
+\caption{Prim + Double Tree vs.\ vizinho mais próximo --- comparação teórica.}
+\label{tab:teorica}
+\rowcolors{2}{tabZebra}{white}
+\begin{tabular}{l l l}
+\toprule
+\rowcolor{tabCabecalho}
+ & \cab{Prim + Double Tree} & \cab{Vizinho mais próximo}\\
+\fioCabecalho
+Estratégia & MST + DFS (atalhos) & Escolha local gulosa\\
+Tempo & $O(n^2)$ (dominado por Prim) & $O(n^2)$\\
+Espaço auxiliar & $O(n)$ & $O(n)$\\
+Garantia (PCV métrico) & Fator 2 ($\leq 2\,OPT$) & Sem garantia constante\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+%======================================================================
+\section{Metodologia e Implementação Computacional}
+%======================================================================
+
+\subsection{Ambiente de Execução}
+\label{sec:ambiente}
+
+\begin{table}[H]
+\centering
+\caption{Ambiente de hardware/software usado nas medições deste Relatório (conforme \texttt{README.md}).}
+\label{tab:ambiente}
+{\small
+\rowcolors{2}{tabZebra}{white}
+\begin{tabular}{L{4.0cm} L{10.5cm}}
+\toprule
+\rowcolor{tabCabecalho}
+\cab{Item} & \cab{Valor}\\
+\fioCabecalho
+CPU & Intel Core i5-9400F @ 2,90 GHz (6 núcleos, 6 threads)\\
+RAM total & 16.702.504 kB ($\sim$15,93 GB)\\
+RAM disponível (na coleta) & 11.778.048 kB ($\sim$11,23 GB)\\
+Memória virtual total & 19.192.832 kB ($\sim$18,30 GB)\\
+Sistema operacional & Microsoft Windows 10 Pro (v10.0.19045, build 19045, 64 bits)\\
+Compilador & GCC 16.1.0 (MinGW-w64)\\
+Flags de compilação & \texttt{-march=native -O3}\\
+\bottomrule
+\end{tabular}
+}
+\end{table}
+
+\subsection{Compilação}
+
+\begin{lstlisting}
+gcc -march=native -O3 comparacaoEntreOsDois.c primEP3.c doubleTreeEP3.c gulosoNAOEOPRINCIPAL.c -o teste
+\end{lstlisting}
+
+\subsection{Programa de comparação e geração dos testes}
+\label{sec:comparacao}
+
+O programa de comparação (\texttt{comparacaoEntreOsDois.c}) executa os
+dois algoritmos sobre a mesma instância de cidades. Para cada combinação
+de distribuição e tamanho, as coordenadas são geradas uma única vez e
+compartilhadas entre Double Tree e vizinho mais próximo.
+
+\subsubsection{\texttt{TipoTeste} e \texttt{nomeTeste}}
+
+O tipo enumerado \texttt{TipoTeste} identifica os cinco cenários:
+aleatório uniforme, clusters, grade regular, círculos concêntricos e
+espiral. A função \texttt{nomeTeste} converte cada identificador em uma
+descrição textual utilizada na saída do programa.
+
+\subsubsection{\texttt{segundos}}
+\label{sec:medicao}
+
+A função recebe dois valores de relógio, obtidos antes e depois da
+execução de um algoritmo, e converte a diferença para segundos dividindo
+por \texttt{CLOCKS\_PER\_SEC}. Os tempos apresentados são os valores
+medidos pelo relógio de CPU da biblioteca C.
+
+\subsubsection{\texttt{validarRota}}
+
+A função verifica se a rota retornada é válida. Primeiro, confere se a
+estrutura existe, se o vetor de caminho foi alocado e se o tamanho da
+rota coincide com $n$. Depois utiliza um vetor auxiliar para verificar
+se cada índice está no intervalo permitido e se nenhuma cidade aparece
+mais de uma vez.
+
+Como existem $n$ posições, todas dentro do intervalo $[0,n-1]$, e não há
+repetição, a sequência contém cada cidade exatamente uma vez.
+
+\subsubsection{\texttt{liberarRota}}
+
+Libera o vetor de caminho e a estrutura da rota recebida. É utilizada ao
+final de cada comparação para liberar os resultados dos dois algoritmos.
+
+\subsubsection{\texttt{aleatorio01}}
+
+Gera um número pseudoaleatório no intervalo $[0,1]$, dividindo o
+resultado de \texttt{rand()} pelo valor máximo produzido por essa
+função. Esse valor é utilizado na geração das distribuições aleatórias.
+
+\subsubsection{\texttt{gerarCidades}}
+
+Preenche as coordenadas de acordo com o cenário selecionado:
+
+\begin{itemize}
+  \item \textbf{Aleatório uniforme:} cada coordenada é sorteada
+    independentemente em uma região quadrada de $1000\times1000$.
+  \item \textbf{Clusters:} são definidos cinco centros, próximos de
+    $(100,100)$, $(900,100)$, $(500,500)$, $(100,900)$ e $(900,900)$.
+    Cada cidade é associada aleatoriamente a um centro e recebe um
+    deslocamento em cada coordenada dentro de uma faixa de 100 unidades.
+  \item \textbf{Grade regular:} as cidades são colocadas em linhas e
+    colunas, com espaçamento de 10 unidades. O lado da grade é calculado
+    como $\lceil\sqrt{n}\rceil$.
+  \item \textbf{Círculos concêntricos:} as cidades são distribuídas em
+    quatro círculos com centro $(500,500)$ e raios 100, 200, 300 e 400.
+  \item \textbf{Espiral:} as cidades seguem uma espiral de quatro
+    voltas, com raio crescente de 20 até 420 unidades.
+\end{itemize}
+
+\subsubsection{\texttt{executarTeste}}
+
+É responsável por executar uma comparação para um cenário e um tamanho
+específicos. Aloca a estrutura de cidades, gera as coordenadas, mede
+separadamente o tempo de \texttt{doubleTree} e de
+\texttt{gulosoVizinhoMaisProximo}, valida as duas rotas e imprime os
+tempos, as distâncias totais e o estado de validade.
+
+Quando as duas rotas são válidas, calcula também a diferença entre os
+custos:
+\[
+  \Delta=D_{\text{Guloso}}-D_{\text{Double Tree}}.
+\]
+O percentual impresso no programa utiliza a distância do Double Tree
+como denominador:
+\[
+  P=100\cdot\frac{D_{\text{Guloso}}-D_{\text{Double Tree}}}{D_{\text{Double Tree}}}.
+\]
+Assim, um valor negativo indica que o guloso produziu uma rota menor; um
+valor positivo indicaria uma rota menor para o Double Tree.
+
+\subsubsection{\texttt{main}}
+
+A função principal define os tamanhos testados ($10$, $100$, $500$,
+$1.000$, $10.000$ e $100.000$ cidades) e os cinco tipos de distribuição.
+Para cada combinação, inicializa o gerador pseudoaleatório com uma
+semente calculada a partir do tipo de teste e do tamanho, e chama
+\texttt{executarTeste}. Isso torna cada combinação reproduzível entre
+execuções do programa.
+
+%======================================================================
+\section{Resultados Experimentais e Discussão Científica}
+\label{sec:resultados}
+%======================================================================
+
+\subsection{Resultados brutos}
+
+Foram executadas 30 comparações: cinco distribuições geométricas e seis
+tamanhos de entrada. Em todos os casos registrados, as duas rotas foram
+validadas como válidas.
+
+A Tabela~\ref{tab:resultados} apresenta os tempos medidos e as distâncias
+totais. Os tempos iguais a $0{,}000$ correspondem a valores abaixo da
+resolução apresentada na saída com seis casas decimais; não significam
+necessariamente que o algoritmo tenha executado em tempo literalmente
+nulo.
+
+\begin{landscape}
+\small
+\setlength{\tabcolsep}{5pt}
+\renewcommand{\arraystretch}{1.22}
+\rowcolors{3}{tabZebra}{white}
+\begin{longtable}{>{\raggedright\arraybackslash}p{2.3cm}r r r r r r l}
+\caption{Resultados brutos e vantagem percentual do vizinho mais próximo em relação ao Double Tree.}
+\label{tab:resultados}\\
+\toprule
+\rowcolor{tabCabecalho}
+\cab{Distribuição} & \cab{$n$} & \cab{Tempo DT (s)} & \cab{Tempo guloso (s)} & \cab{Distância DT} & \cab{Distância gulosa} & \cab{Vantagem guloso} & \cab{Melhor rota}\\
+\fioCabecalho
+\endfirsthead
+\toprule
+\rowcolor{tabCabecalho}
+\cab{Distribuição} & \cab{$n$} & \cab{Tempo DT (s)} & \cab{Tempo guloso (s)} & \cab{Distância DT} & \cab{Distância gulosa} & \cab{Vantagem guloso} & \cab{Melhor rota}\\
+\fioCabecalho
+\endhead
+\bottomrule
+\endfoot
+\textbf{Aleatório} & 10 & 0.000 & 0.000 & 3700.427 & 3296.415 & \textcolor{verdeVantagem}{+10,92\%} & Guloso \\
+ & 100 & 0.001 & 0.000 & 9893.708 & 9505.586 & \textcolor{verdeVantagem}{+3,92\%} & Guloso \\
+ & 500 & 0.001 & 0.000 & 22767.548 & 19656.217 & \textcolor{verdeVantagem}{+13,67\%} & Guloso \\
+ & 1\,000 & 0.004 & 0.002 & 32068.580 & 27832.335 & \textcolor{verdeVantagem}{+13,21\%} & Guloso \\
+ & 10\,000 & 0.496 & 0.211 & 101450.938 & 87880.962 & \textcolor{verdeVantagem}{+13,38\%} & Guloso \\
+ & 100\,000 & 50.266 & 25.663 & 319919.748 & 277713.643 & \textcolor{verdeVantagem}{+13,19\%} & Guloso \\
+\textbf{Clusters} & 10 & 0.000 & 0.000 & 3775.059 & 3756.811 & \textcolor{verdeVantagem}{+0,48\%} & Guloso \\
+ & 100 & 0.000 & 0.000 & 5947.183 & 4982.712 & \textcolor{verdeVantagem}{+16,22\%} & Guloso \\
+ & 500 & 0.001 & 0.000 & 8979.338 & 7582.848 & \textcolor{verdeVantagem}{+15,55\%} & Guloso \\
+ & 1\,000 & 0.005 & 0.001 & 10696.804 & 9559.762 & \textcolor{verdeVantagem}{+10,63\%} & Guloso \\
+ & 10\,000 & 0.499 & 0.207 & 26156.243 & 23138.575 & \textcolor{verdeVantagem}{+11,54\%} & Guloso \\
+ & 100\,000 & 50.905 & 25.756 & 75206.083 & 65583.300 & \textcolor{verdeVantagem}{+12,80\%} & Guloso \\
+\textbf{Grade} & 10 & 0.000 & 0.000 & 114.142 & 112.361 & \textcolor{verdeVantagem}{+1,56\%} & Guloso \\
+ & 100 & 0.000 & 0.000 & 1715.603 & 1080.000 & \textcolor{verdeVantagem}{+37,05\%} & Guloso \\
+ & 500 & 0.001 & 0.000 & 9325.575 & 5250.828 & \textcolor{verdeVantagem}{+43,69\%} & Guloso \\
+ & 1\,000 & 0.002 & 0.001 & 19055.303 & 10530.208 & \textcolor{verdeVantagem}{+44,74\%} & Guloso \\
+ & 10\,000 & 0.220 & 0.100 & 197015.051 & 100980.000 & \textcolor{verdeVantagem}{+48,75\%} & Guloso \\
+ & 100\,000 & 20.742 & 9.816 & 1990505.041 & 1004850.029 & \textcolor{verdeVantagem}{+49,52\%} & Guloso \\
+\textbf{Círculos} & 10 & 0.000 & 0.000 & 2087.408 & 2087.408 & \textcolor{eachTeal}{0,00\%} & Empate \\
+ & 100 & 0.000 & 0.000 & 8348.296 & 6615.995 & \textcolor{verdeVantagem}{+20,75\%} & Guloso \\
+ & 500 & 0.001 & 0.000 & 9737.280 & 6832.264 & \textcolor{verdeVantagem}{+29,83\%} & Guloso \\
+ & 1\,000 & 0.002 & 0.001 & 9217.071 & 6857.888 & \textcolor{verdeVantagem}{+25,60\%} & Guloso \\
+ & 10\,000 & 0.208 & 0.094 & 9132.778 & 6880.670 & \textcolor{verdeVantagem}{+24,66\%} & Guloso \\
+ & 100\,000 & 18.222 & 9.490 & 8859.103 & 6882.934 & \textcolor{verdeVantagem}{+22,31\%} & Guloso \\
+\textbf{Espiral} & 10 & 0.000 & 0.000 & 2136.939 & 2136.939 & \textcolor{eachTeal}{0,00\%} & Empate \\
+ & 100 & 0.000 & 0.000 & 6136.327 & 5937.725 & \textcolor{verdeVantagem}{+3,24\%} & Guloso \\
+ & 500 & 0.001 & 0.000 & 5952.285 & 5952.285 & \textcolor{eachTeal}{0,00\%} & Empate \\
+ & 1\,000 & 0.002 & 0.001 & 5952.733 & 5952.733 & \textcolor{eachTeal}{0,00\%} & Empate \\
+ & 10\,000 & 0.208 & 0.098 & 5952.880 & 5952.880 & \textcolor{eachTeal}{0,00\%} & Empate \\
+ & 100\,000 & 20.594 & 9.749 & 5952.882 & 5952.882 & \textcolor{eachTeal}{0,00\%} & Empate \\
+\end{longtable}
+\end{landscape}
+
+\noindent\textbf{Como ler a porcentagem:} o valor é calculado por
+$((D_{DT}-D_G)/D_{DT})\times100$. Valores positivos em
+\textcolor{verdeVantagem}{verde} indicam que o guloso encontrou uma rota
+menor; valores negativos em \textcolor{vermelhoDesvantagem}{vermelho}
+indicariam vantagem do Double Tree. Empates aparecem em \textcolor{eachTeal}{azul-petróleo}. A
+porcentagem compara somente o comprimento das rotas, não o tempo de
+execução.
+
+\subsection{Síntese dos resultados}
+
+Considerando as 30 instâncias, o vizinho mais próximo obteve distância
+estritamente menor em \textbf{24 casos}. Em \textbf{seis casos}, os
+algoritmos produziram distâncias iguais. O Double Tree \textbf{não obteve
+uma distância estritamente menor} em nenhuma das instâncias registradas.
+
+O resultado depende fortemente da distribuição. Na grade regular com
+$100.000$ cidades, por exemplo, o guloso produziu distância
+$1.004.850{,}029$, enquanto o Double Tree produziu $1.990.505{,}041$. Na
+espiral, a partir de 500 cidades, os dois métodos produziram exatamente
+as mesmas distâncias apresentadas na saída, aproximadamente
+$5.952{,}3$.
+
+\subsection{Gráficos de desempenho}
+
+Os três gráficos seguintes utilizam escalas logarítmicas nos dois eixos
+(log-log). Essa representação permite observar o crescimento dos tempos
+em diferentes ordens de grandeza.
+
+\figuraopcional{figuras/grafico_double_tree.png}{Tempo de execução do Prim seguido do Double Tree, nos cinco cenários, escala log-log.}{fig:dt}{Fonte: Tabela~\ref{tab:resultados}.}
+
+\figuraopcional{figuras/grafico_guloso.png}{Tempo de execução do vizinho mais próximo, nos cinco cenários, escala log-log.}{fig:guloso}{Fonte: Tabela~\ref{tab:resultados}.}
+
+\figuraopcional{figuras/grafico_comparacao_o_n2.png}{Comparação dos tempos médios para 10.000 e 100.000 cidades e referências de crescimento $O(n^2)$.}{fig:on2}{Fonte: Tabela~\ref{tab:resultados}.}
+
+Nos dois primeiros gráficos (Figuras~\ref{fig:dt} e~\ref{fig:guloso}),
+os pontos com tempo impresso como $0{,}000$ não aparecem, pois uma escala
+logarítmica não representa zero. No terceiro gráfico
+(Figura~\ref{fig:on2}), as médias são calculadas sobre os cinco cenários
+nos tamanhos de 10.000 e 100.000 cidades, nos quais todos os tempos
+foram positivos na saída. As linhas tracejadas são referências teóricas
+$O(n^2)$ normalizadas no ponto de 100.000 cidades; não são medições
+adicionais.
+
+Os dados de maior escala são compatíveis com o crescimento quadrático
+esperado. Para o Double Tree, o custo quadrático vem de Prim. Para o
+vizinho mais próximo, vem da busca linear pela próxima cidade em cada
+etapa.
+
+\subsection{Por que o guloso obteve resultados melhores nestes testes?}
+
+O vizinho mais próximo constrói a rota com base na distância entre a
+cidade atual e as cidades ainda não visitadas. Em distribuições
+espaciais como a grade e os clusters, essa regra local frequentemente
+permite continuar em regiões próximas antes de realizar deslocamentos
+maiores.
+
+O Double Tree, por outro lado, não escolhe diretamente a próxima cidade
+da rota com base na menor distância a partir da posição atual. Primeiro
+constrói uma MST e depois utiliza a ordem de uma DFS para visitar os
+vértices. A MST minimiza a soma das arestas da árvore, mas essa ordem de
+visita não minimiza necessariamente o ciclo produzido após os atalhos.
+Portanto, uma árvore de peso baixo não implica que a pré-ordem da DFS
+gere uma rota melhor que a heurística gulosa.
+
+A diferença ficou especialmente evidente na grade regular. Para
+$100.000$ cidades, a distância do guloso foi aproximadamente
+\textbf{49,52\% menor} que a distância do Double Tree, quando a diferença
+é expressa em relação ao custo do Double Tree. Isso mostra que, nessa
+instância, a ordem produzida pela DFS gerou deslocamentos adicionais
+relevantes.
+
+Na distribuição em espiral, os custos foram iguais a partir de 500
+cidades. A estrutura geométrica e a ordem dos pontos fizeram com que os
+dois procedimentos produzissem ciclos de mesmo comprimento nos valores
+registrados. Esse resultado é específico dessa construção e não
+significa que os algoritmos sejam equivalentes em espirais em geral.
+
+\subsection{Em quais situações o Double Tree poderia ganhar?}
+
+O Double Tree pode produzir uma rota menor que o vizinho mais próximo
+quando a ordem de visita induzida pela MST e pela DFS evita escolhas
+locais que levam o guloso a realizar deslocamentos longos ou a deixar
+regiões distantes para o final.
+
+O vizinho mais próximo pode ficar preso a uma sequência de decisões
+localmente atraentes: uma escolha que parece boa em um passo pode deixar
+uma cidade isolada para uma etapa posterior, exigindo um deslocamento
+grande. Em uma instância cuidadosamente construída para esse
+comportamento, a rota do guloso pode ser pior que a rota obtida por
+atalhos no passeio da MST.
+
+\textbf{Ressalva:} não foi observado um caso de vitória estrita do
+Double Tree nos 30 testes apresentados. Assim, a possibilidade de vitória
+é uma consequência da diferença entre as estratégias, não uma conclusão
+demonstrada por esta amostra experimental.
+
+\subsection{Comparação de tempo}
+
+Nos tamanhos de 10.000 e 100.000 cidades, o vizinho mais próximo foi
+mais rápido em todos os cenários. Para 100.000 cidades, o tempo do
+Double Tree variou de 18,222\,s a 50,905\,s; o do guloso variou de
+9,490\,s a 25,756\,s.
+
+Embora ambos tenham complexidade assintótica $O(n^2)$, isso não implica
+tempos iguais. O Double Tree executa Prim e, depois, constrói a
+estrutura de filhos, realiza DFS e calcula a rota. O vizinho mais
+próximo realiza a busca pelo próximo vértice e calcula o ciclo. As
+operações, constantes de execução e padrões de acesso à memória são
+diferentes.
+
+\textbf{Ressalva metodológica:} os tempos variaram também entre as
+distribuições para um mesmo tamanho. Como foi registrada uma execução
+por combinação, essa variação deve ser interpretada como resultado
+observado nessas execuções, e não como uma estimativa estatística
+definitiva. Repetições e médias poderiam reduzir a influência de
+variações ocasionais do ambiente de execução.
+
+\subsection{Pontos positivos e negativos}
+
+\begin{table}[H]
+\centering
+\rowcolors{2}{tabZebra}{white}
+\begin{tabularx}{\textwidth}{>{\raggedright\arraybackslash}p{2.7cm}XX}
+\toprule
+\rowcolor{tabCabecalho}
+\cab{Método} & \cab{Pontos positivos} & \cab{Limitações}\\
+\fioCabecalho
+Prim + Double Tree &
+Possui garantia teórica de aproximação de fator 2 para o PCV métrico; parte de uma MST, que é uma estrutura global de custo mínimo; produz uma rota válida por atalhos no passeio da árvore. &
+A ordem de DFS não é necessariamente uma boa ordem para o ciclo; a garantia permite que a rota tenha custo até duas vezes o ótimo; na implementação analisada, a etapa de Prim domina o tempo.\\
+\midrule
+Vizinho mais próximo &
+É simples de implementar; constrói a rota diretamente; apresentou menores distâncias e menores tempos na maioria ou totalidade dos cenários medidos, sem contar empates. &
+As decisões são locais; uma escolha pode prejudicar etapas posteriores; não possui garantia geral de aproximação constante para o PCV métrico.\\
+\bottomrule
+\end{tabularx}
+\caption{Síntese qualitativa dos dois métodos.}
+\label{tab:qualitativa}
+\end{table}
+
+\subsection{Conclusão}
+
+A implementação de Prim combinada com Double Tree produz uma solução
+aproximada para o PCV euclidiano com garantia teórica de fator~2. Sua
+principal vantagem é oferecer um limite matemático para a qualidade da
+solução, algo que não é fornecido pelo vizinho mais próximo na forma
+implementada.
+
+Nos testes realizados, entretanto, o vizinho mais próximo obteve
+resultados empíricos melhores: venceu estritamente em 24 das 30
+instâncias e empatou nas outras seis. Também apresentou menor tempo nos
+testes de maior porte. A diferença foi particularmente expressiva na
+grade regular, enquanto a espiral produziu empates a partir de 500
+cidades.
+
+Esses resultados não invalidam a garantia do Double Tree. A garantia é
+uma afirmação sobre a relação entre a rota produzida e a solução ótima;
+ela não afirma que o Double Tree sempre supera outras heurísticas. Da
+mesma forma, o bom desempenho do vizinho mais próximo nas instâncias
+avaliadas não constitui uma garantia para instâncias futuras.
+
+Conclui-se que os dois algoritmos representam abordagens diferentes: o
+Double Tree oferece uma \textbf{garantia teórica} para custos métricos,
+enquanto o vizinho mais próximo apresentou \textbf{melhor desempenho
+prático} neste conjunto de experimentos. A escolha entre eles depende de
+se priorizar uma garantia formal de qualidade ou o desempenho observado
+nas instâncias consideradas.
+
+%======================================================================
+\section{Fontes e Referências}
+%======================================================================
+
+\begin{itemize}
+  \item P.~Feofiloff. \emph{Algoritmo de Prim para árvore geradora
+    barata num grafo}. Algoritmos para Grafos, Instituto de Matemática e
+    Estatística, Universidade de São Paulo, 2019. \urlPrimFeofiloff.
+    Acesso em: 21 nov.\ 2026.
+  \item GeeksforGeeks. \emph{Approximate solution for Travelling
+    Salesman Problem using MST}, 23 jul.\ 2025. \urlGeeks. Acesso em:
+    21 nov.\ 2026.
+  \item Wikipedia. \emph{Prim's algorithm}. \urlWikiPrim. Acesso em:
+    21 nov.\ 2026.
+\end{itemize}
+
+\end{document}
