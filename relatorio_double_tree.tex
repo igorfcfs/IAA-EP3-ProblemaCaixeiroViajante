@@ -18,6 +18,8 @@
 \usepackage{listings}
 \usepackage{titlesec}
 \usepackage{tikz}
+\usepackage{pgfplots}
+\pgfplotsset{compat=1.18}
 \usepackage{eso-pic}
 \usepackage{pdflscape}
 \usepackage{fancyhdr}
@@ -160,20 +162,24 @@
   borderline west={1.2pt}{0pt}{eachOrange}, before skip=6pt, after skip=10pt}
 \renewcommand{\qedsymbol}{\textcolor{eachTeal}{$\blacksquare$}}
 
-% Inclui a figura apenas se o arquivo existir
-% #1 = arquivo, #2 = legenda, #3 = rótulo, #4 = fonte (só na legenda)
-\newcommand{\figuraopcional}[4]{%
-  \IfFileExists{#1}{%
-    \begin{figure}[H]
-      \centering
-      \includegraphics[width=0.82\textwidth]{#1}
-      \caption[#2]{#2 #4}
-      \label{#3}
-    \end{figure}%
-  }{%
-    \begin{center}\fbox{\parbox{0.8\textwidth}{\centering\small
-      Figura pendente: \texttt{\detokenize{#1}}\\ (#2)}}\end{center}%
-  }%
+% Gráficos (pgfplots): séries nas cores da EACH, eixos log-log
+\definecolor{serieRoxa}{RGB}{110,70,150}
+\pgfplotsset{
+  serieA/.style={color=eachTeal, mark=*, thick, mark size=1.8pt},
+  serieB/.style={color=eachOrange, mark=square*, thick, mark size=1.7pt},
+  serieC/.style={color=eachCyan!75!black, mark=triangle*, thick, mark size=2.2pt},
+  serieD/.style={color=black!55, mark=diamond*, thick, mark size=2.2pt},
+  serieE/.style={color=serieRoxa, mark=pentagon*, thick, mark size=2pt},
+  referencia/.style={color=black!70, dashed, thin, samples=40},
+  eixoTempo/.style={
+    width=0.92\textwidth, height=7.2cm,
+    xlabel={Número de cidades ($n$)}, ylabel={Tempo médio por execução (s)},
+    grid=major, major grid style={black!12},
+    legend pos=north west, legend cell align=left,
+    legend style={font=\footnotesize, draw=black!25, fill=white, fill opacity=0.9, text opacity=1},
+    tick label style={font=\footnotesize}, label style={font=\small},
+    axis line style={black!60},
+  },
 }
 
 % Faixa tricolor da EACH (azul-petróleo / ciano / laranja)
@@ -290,7 +296,7 @@ as permutações possíveis.
     deve ser avaliado.
   \item[Grupo:] Matheus Resende (implementação do código), Guilherme
     Costa (implementação e pesquisa), Ezequiel Nogueira (pesquisa e
-    relatório) e Igor Cassita (relatório).
+    relatório) e Igor Casita (relatório).
 \end{description}
 
 \subsection{Objetivo}
@@ -308,13 +314,13 @@ análise comparativa (Seção~\ref{sec:resultados}).
 EP3/
 |-- relatorio_double_tree.pdf / .tex  # este Relatorio
 |-- README.md                         # compilacao, grupo e ambiente
-|-- ep3.h                             # estruturas Cidades, MST, Rota, Node
-|-- primEP3.c                         # algoritmo de Prim (MST)
+|-- ep3.h                             # estruturas Cidades, MST e Rota
+|-- primEP3.c                         # algoritmo de Prim (MST) e alocacao
 |-- doubleTreeEP3.c                   # Double Tree, DFS e custo da rota
 |-- gulosoNAOEOPRINCIPAL.c            # vizinho mais proximo (referencia)
 |-- comparacaoEntreOsDois.c           # programa de comparacao
-|-- testeEP3.c                        # testes
-`-- figuras/                          # graficos e identidade visual
+|-- testeEP3.c                        # testes de corretude e desempenho
+`-- figuras/                          # logotipos da EACH-USP
 \end{lstlisting}
 
 %======================================================================
@@ -338,11 +344,14 @@ triangular estabelece que, para quaisquer três pontos $u$, $v$ e $w$,
 \]
 Essa propriedade é essencial para a garantia teórica do Double Tree.
 
-Na representação utilizada, a estrutura \texttt{Cidades} armazena as
-coordenadas e a quantidade efetiva de cidades. A estrutura \texttt{MST}
-armazena o vetor de pais da árvore e o peso total da árvore. A estrutura
-\texttt{Rota} armazena a sequência de cidades, seu tamanho e a distância
-total do ciclo.
+Na representação utilizada (\texttt{ep3.h}), a estrutura
+\texttt{Cidades} armazena um vetor dinâmico de coordenadas e a
+quantidade de cidades; ela é criada por \texttt{criarCidades(n)}, que
+aloca exatamente $n$ posições. A estrutura \texttt{MST} armazena o vetor
+de pais da árvore e o peso total da árvore. A estrutura \texttt{Rota}
+armazena a sequência de cidades, seu tamanho, a distância total do ciclo
+e o peso da MST que a originou, usado na análise como limite inferior
+do custo ótimo (Seção~\ref{sec:limite}).
 
 \subsection{Algoritmo de Prim}
 \label{sec:prim}
@@ -364,74 +373,94 @@ euclidiana entre elas.
 
 \subsubsection*{Implementação (\texttt{primEP3.c})}
 
-A função \texttt{Prim} mantém três informações principais:
+A função \texttt{Prim} mantém quatro vetores principais:
 
 \begin{itemize}
-  \item \texttt{cidadesVisitadas}: indica quais vértices já foram
-    incorporados à árvore;
+  \item \texttt{restantes}: lista compacta dos vértices que ainda
+    \emph{não} foram incorporados à árvore (inicialmente, todos exceto
+    a cidade~0);
   \item \texttt{menorDistancia}: para cada vértice ainda não
     incorporado, guarda o menor custo conhecido de uma aresta que o
-    conecta à árvore atual;
+    conecta à árvore atual (ao quadrado, ver abaixo);
   \item \texttt{pai}: registra qual vértice da árvore fornece essa
-    conexão mínima. O vetor de pais representa a árvore resultante.
+    conexão mínima. O vetor de pais representa a árvore resultante;
+  \item \texttt{x} e \texttt{y}: cópias das coordenadas em dois vetores
+    separados, o que deixa o acesso à memória sequencial e permite ao
+    compilador vetorizar o laço interno.
 \end{itemize}
 
-A construção começa pela cidade de índice zero. Inicialmente, as demais
-cidades têm como melhor conexão conhecida a aresta que as liga à cidade
-inicial. Em cada iteração, o algoritmo procura, entre as cidades ainda
-não visitadas, aquela com menor valor em \texttt{menorDistancia}. Essa
-cidade é incorporada à árvore.
+A construção começa pela cidade de índice zero. A cada passo, o último
+vértice incorporado (\texttt{atual}) é comparado com todos os vértices
+de \texttt{restantes} em \textbf{uma única varredura}, que faz duas
+coisas ao mesmo tempo: (i) se a aresta até \texttt{atual} for mais
+barata que a melhor conexão conhecida, atualiza a menor distância e o
+pai; (ii) acompanha o vértice de menor \texttt{menorDistancia}, que será
+o próximo a entrar na árvore. O vértice escolhido é retirado de
+\texttt{restantes} em $O(1)$, trocando-o de lugar com o último elemento
+da lista. O processo termina quando a lista fica vazia; o vetor de pais
+descreve então uma MST.
 
-Depois da inclusão, o algoritmo percorre as cidades restantes e verifica
-se a conexão com o novo vértice é mais barata que a melhor conexão
-anteriormente conhecida. Quando isso ocorre, atualiza tanto a menor
-distância quanto o pai da cidade.
-
-O processo é repetido até que todas as cidades tenham sido incorporadas.
-O vetor de pais descreve então uma MST.
+Dois detalhes garantem que a árvore seja a mesma da versão anterior do
+código (que fazia duas varreduras completas por passo): as distâncias
+são comparadas \emph{ao quadrado}, o que não altera a ordem das
+comparações porque a raiz quadrada é crescente, e, entre distâncias
+iguais, escolhe-se sempre o \emph{menor índice}. O programa de testes
+(Seção~\ref{sec:testes}) confirma que os vetores de pais das duas
+versões são idênticos.
 
 \begin{lstlisting}[language=C]
-for (int k = 1; k < cidadesArr->numCidades; k++) {
-  j = -1;
-  double menor = DBL_MAX;
-  for (i = 0; i < cidadesArr->numCidades; i++) {  /* proximo vertice */
-    double distancia = menorDistancia[i];
-    if (cidadesVisitadas[i] != 1 && menor > distancia) {
-      menor = distancia;
-      j = i;
+int atual = 0;                     /* ultimo vertice que entrou na arvore */
+while (m > 0) {                    /* m = vertices fora da arvore */
+  const double ax = x[atual], ay = y[atual];
+  double menor = HUGE_VAL;
+  int melhor = -1, posMelhor = -1;
+  for (int q = 0; q < m; q++) {
+    int v = restantes[q];
+    double dx = x[v] - ax, dy = y[v] - ay;
+    double d = dx*dx + dy*dy;
+    if (d < menorDistancia[v]) {   /* atualizacao */
+      menorDistancia[v] = d;
+      pai[v] = atual;
+    }
+    double dv = menorDistancia[v]; /* escolha do proximo vertice */
+    if (dv < menor || (dv == menor && v < melhor)) {
+      menor = dv; melhor = v; posMelhor = q;
     }
   }
-  cidadesVisitadas[j] = 1;
-  for (i = 0; i < cidadesArr->numCidades; i++) {  /* atualizacao */
-    double distancia = euclideanDisSquared(cidadesArr->cidades[j],
-                                           cidadesArr->cidades[i]);
-    if (cidadesVisitadas[i] != 1 && distancia < menorDistancia[i]) {
-      menorDistancia[i] = distancia;
-      minimumSTree->pai[i] = j;
-    }
-  }
+  restantes[posMelhor] = restantes[--m];  /* remocao em O(1) */
+  atual = melhor;
 }
 \end{lstlisting}
 
-\textbf{Complexidade temporal:} na implementação apresentada, a busca
-pelo próximo vértice percorre o vetor de cidades. A atualização das
-menores distâncias também percorre esse vetor. Essas duas varreduras são
-realizadas para cada uma das $n$ cidades. Assim, o tempo total é
+\textbf{Complexidade temporal:} no passo $k$ ($k=1,\dots,n-1$) a
+varredura percorre os $n-k$ vértices que ainda estão fora da árvore.
+O número total de iterações do laço interno é, portanto,
 \[
-  T_{\text{Prim}}(n)=O(n^2).
+  \sum_{k=1}^{n-1}(n-k)=\frac{n(n-1)}{2},
+  \qquad
+  T_{\text{Prim}}(n)=\Theta(n^2).
 \]
-Essa é a implementação de Prim por matriz implícita de distâncias, sem
-uma fila de prioridade. Como o grafo é completo, a quantidade de arestas
-é $\Theta(n^2)$.
+Essa é a implementação de Prim por vetor de distâncias, sem fila de
+prioridade, adequada a grafos completos: como existem $\Theta(n^2)$
+arestas, qualquer algoritmo que examine todas elas gasta
+$\Omega(n^2)$. A versão anterior realizava duas varreduras de $n$
+posições por passo, cerca de $2n^2$ iterações; a ordem de grandeza é a
+mesma, mas a constante é aproximadamente quatro vezes menor
+(Seção~\ref{sec:ganho}).
 
-\textbf{Complexidade espacial:} a implementação mantém vetores de
-tamanho proporcional ao número de cidades: cidades visitadas, menores
-distâncias e pais. Portanto, a memória auxiliar utilizada por Prim é
+\textbf{Complexidade espacial:} a implementação mantém cinco vetores de
+tamanho $n$ (\texttt{x}, \texttt{y}, \texttt{menorDistancia},
+\texttt{restantes} e \texttt{pai}). Portanto, a memória auxiliar
+utilizada por Prim é
 \[
-  S_{\text{Prim}}(n)=O(n).
+  S_{\text{Prim}}(n)=\Theta(n).
 \]
-A representação das coordenadas também ocupa espaço linear no número de
-cidades efetivamente utilizadas.
+A entrada também ocupa espaço linear: \texttt{criarCidades(n)} aloca
+apenas as $n$ coordenadas usadas.\footnote{Na versão anterior, a
+estrutura \texttt{Cidades} continha um vetor fixo de $10^7$ posições,
+de modo que cada instância reservava cerca de 160\,MB, mesmo com
+$n=10$. A afirmação de espaço linear só passou a valer com o vetor
+dinâmico.}
 
 \subsection{Double Tree}
 \label{sec:doubletree}
@@ -448,8 +477,8 @@ visita todos os vértices.
 
 A implementação não precisa materializar explicitamente todas as arestas
 duplicadas nem armazenar o passeio completo. Ela utiliza a árvore
-representada pelo vetor de pais, constrói listas de filhos e realiza uma
-busca em profundidade (DFS) para obter uma ordem de visita.
+representada pelo vetor de pais, agrupa os filhos de cada vértice e
+realiza uma busca em profundidade (DFS) para obter uma ordem de visita.
 
 \subsubsection*{Implementação (\texttt{doubleTreeEP3.c})}
 
@@ -458,18 +487,23 @@ busca em profundidade (DFS) para obter uma ordem de visita.
     árvore geradora mínima. Seu resultado contém o vetor de pais, que
     permite reconstruir a relação entre os vértices da árvore.
   \item[\texttt{doubleTree}:] coordena a construção da rota. Primeiro,
-    obtém a MST. Em seguida, cria um vetor de listas de filhos: para cada
-    cidade diferente da raiz, cria um nó e o insere na lista
-    correspondente ao seu pai. Depois aloca a estrutura da rota, chama a
-    DFS para preencher a ordem de visita e calcula o comprimento do
-    ciclo. Ao final, libera as estruturas auxiliares da árvore e retorna
-    a rota.
+    obtém a MST. Em seguida, agrupa os filhos de cada vértice em
+    \emph{formato compacto}, sem listas ligadas: conta quantos filhos
+    cada vértice tem, faz a soma de prefixos dessas contagens
+    (\texttt{inicioFilhos[v]} indica onde começam os filhos de $v$) e
+    distribui os vértices no vetor \texttt{filhos}, em ordem crescente
+    de índice. São três vetores alocados de uma vez, em vez de $n-1$
+    alocações de nós. Depois aloca a rota, chama a DFS, calcula o
+    comprimento do ciclo e guarda o peso da MST na rota. Todas as
+    alocações são verificadas: se alguma falhar, a função libera o que
+    já foi alocado e devolve \texttt{NULL}.
   \item[\texttt{DFS}:] a busca em profundidade é iterativa e utiliza uma
-    pilha. A cidade zero é registrada primeiro. Seus filhos são colocados
-    na pilha; a cada remoção, a cidade correspondente é acrescentada à
-    ordem de visita e seus próprios filhos são empilhados. Como cada
-    vértice da árvore possui um único pai, cada cidade é inserida e
-    visitada uma única vez.
+    pilha de índices. A cidade zero é empilhada primeiro. A cada
+    remoção, a cidade é acrescentada à ordem de visita e seus filhos são
+    empilhados do maior para o menor índice, de modo que o menor é
+    visitado primeiro. Como cada vértice da árvore possui um único pai,
+    cada cidade é empilhada e visitada uma única vez, e a pilha nunca
+    passa de $n-1$ elementos.
   \item[\texttt{calcularDistanciaTotal}:] percorre a sequência produzida
     pela DFS, soma as distâncias entre cidades consecutivas e, ao final,
     soma também a distância entre a última cidade e a primeira. Essa
@@ -478,25 +512,25 @@ busca em profundidade (DFS) para obter uma ordem de visita.
 \end{description}
 
 \begin{lstlisting}[language=C]
-void DFS(int numCidades, Node** filhos, int* visitasOrdem, int* k) {
-  Node** pilha = calloc(numCidades, sizeof(Node*));
+void DFS(int numCidades, const int* inicioFilhos, const int* filhos,
+         int* visitasOrdem, int* k) {
+  int* pilha = malloc(sizeof(int) * numCidades);
+  if (pilha == NULL) return;
   int topo = 0;
-  visitasOrdem[(*k)++] = 0;              /* raiz: cidade 0 */
-  Node* p = filhos[0];
-  while (p) { pilha[topo++] = p; p = p->prox; }
+  pilha[topo++] = 0;                         /* raiz: cidade 0 */
   while (topo != 0) {
-    Node* temp = pilha[--topo];
-    visitasOrdem[(*k)++] = temp->val;    /* pre-ordem = atalhos */
-    p = filhos[temp->val];
-    while (p) { pilha[topo++] = p; p = p->prox; }
+    int v = pilha[--topo];
+    visitasOrdem[(*k)++] = v;                /* pre-ordem = atalhos */
+    for (int c = inicioFilhos[v+1] - 1; c >= inicioFilhos[v]; c--)
+      pilha[topo++] = filhos[c];             /* menor indice no topo */
   }
   free(pilha);
 }
 \end{lstlisting}
 
 \textbf{Complexidade temporal:} a etapa dominante é a execução de Prim,
-com custo $O(n^2)$. A criação das listas de filhos percorre o vetor de
-pais uma vez, custando $O(n)$. A DFS visita cada vértice e cada ligação
+com custo $\Theta(n^2)$. O agrupamento dos filhos percorre o vetor de
+pais duas vezes e faz uma soma de prefixos, custando $O(n)$. A DFS visita cada vértice e cada ligação
 da árvore uma vez, também custando $O(n)$. O cálculo da distância da
 rota percorre $n$ cidades, com custo $O(n)$. Logo,
 \[
@@ -504,9 +538,9 @@ rota percorre $n$ cidades, com custo $O(n)$. Logo,
 \]
 
 \textbf{Complexidade espacial:} além das coordenadas de entrada, a
-execução mantém os vetores de Prim, o vetor de listas de filhos, os
-$n-1$ nós que representam as relações pai-filho, a pilha da DFS e o
-vetor da rota. Cada uma dessas estruturas utiliza espaço linear.
+execução mantém os vetores de Prim, os vetores \texttt{inicioFilhos},
+\texttt{filhos} e \texttt{proximaPos}, a pilha da DFS e o vetor da
+rota. Cada uma dessas estruturas utiliza espaço linear.
 Portanto, a memória auxiliar total é
 \[
   S_{\text{Double Tree}}(n)=O(n).
@@ -569,9 +603,14 @@ são realizadas. Entretanto, ela toma decisões locais: escolhe a melhor
 próxima cidade sem considerar necessariamente o efeito dessa escolha
 sobre o restante do percurso.
 
+Para que a comparação de tempo seja justa, a busca da cidade mais
+próxima compara distâncias \emph{ao quadrado}, como o Prim já fazia: a
+cidade escolhida é a mesma, mas o guloso deixa de calcular uma raiz
+quadrada por comparação.
+
 \textbf{Complexidade temporal:} em cada um dos $n-1$ passos, a
-implementação percorre até $n$ cidades para encontrar a mais próxima.
-Portanto,
+implementação percorre as $n$ cidades (pulando as já visitadas) para
+encontrar a mais próxima. Portanto,
 \[
   T_{\text{Guloso}}(n)=O(n^2).
 \]
@@ -582,8 +621,11 @@ possuem tamanho proporcional a $n$, resultando em
   S_{\text{Guloso}}(n)=O(n).
 \]
 
-Diferentemente do Double Tree, o vizinho mais próximo não possui, nesta
-forma geral, uma garantia de aproximação constante para o PCV métrico.
+Diferentemente do Double Tree, o vizinho mais próximo não possui uma
+garantia de aproximação constante para o PCV métrico: Rosenkrantz,
+Stearns e Lewis (1977) mostraram que sua razão de aproximação é
+$\Theta(\log n)$ no pior caso, ou seja, existem instâncias em que a rota
+gulosa fica arbitrariamente pior que a ótima à medida que $n$ cresce.
 Seu resultado depende da distribuição dos pontos e das decisões locais
 realizadas durante a construção.
 
@@ -600,12 +642,39 @@ realizadas durante a construção.
  & \cab{Prim + Double Tree} & \cab{Vizinho mais próximo}\\
 \fioCabecalho
 Estratégia & MST + DFS (atalhos) & Escolha local gulosa\\
-Tempo & $O(n^2)$ (dominado por Prim) & $O(n^2)$\\
-Espaço auxiliar & $O(n)$ & $O(n)$\\
-Garantia (PCV métrico) & Fator 2 ($\leq 2\,OPT$) & Sem garantia constante\\
+Tempo & $\Theta(n^2)$ (dominado por Prim) & $\Theta(n^2)$\\
+Espaço auxiliar & $\Theta(n)$ & $\Theta(n)$\\
+Garantia (PCV métrico) & Fator 2 ($\leq 2\,OPT$) & $\Theta(\log n)$ no pior caso\\
 \bottomrule
 \end{tabular}
 \end{table}
+
+\subsection{Limites desta implementação e alternativas}
+\label{sec:alternativas}
+
+O custo $\Theta(n^2)$ vem de tratar a entrada como um grafo completo
+genérico. Para pontos no plano, porém, existem caminhos mais rápidos e
+rotas melhores, que ficam como trabalhos futuros:
+
+\begin{itemize}
+  \item \textbf{MST em $O(n\log n)$.} A árvore geradora mínima
+    euclidiana está contida na triangulação de Delaunay, que tem apenas
+    $O(n)$ arestas e pode ser construída em $O(n\log n)$. Rodando
+    Kruskal (ou Prim com heap) sobre essas arestas, o Double Tree
+    inteiro passa a custar $O(n\log n)$, contra $\Theta(n^2)$ do
+    vizinho mais próximo na forma implementada. Uma árvore $k$-d é uma
+    alternativa mais simples de programar, com desempenho semelhante na
+    prática.
+  \item \textbf{Melhoria local da rota.} Uma pós-otimização como
+    \emph{2-opt} (desfazer cruzamentos invertendo trechos da rota) ou
+    \emph{Or-opt} reduz bastante o custo da rota produzida pelo Double
+    Tree, sem perder a garantia de fator~2, pois nunca piora a rota.
+  \item \textbf{Garantia melhor.} O algoritmo de Christofides parte da
+    mesma MST, mas, em vez de duplicar todas as arestas, acrescenta um
+    emparelhamento perfeito de custo mínimo entre os vértices de grau
+    ímpar; isso reduz a garantia para fator~$1{,}5$, ao custo de uma
+    implementação bem mais complexa.
+\end{itemize}
 
 %======================================================================
 \section{Metodologia e Implementação Computacional}
@@ -625,13 +694,11 @@ Garantia (PCV métrico) & Fator 2 ($\leq 2\,OPT$) & Sem garantia constante\\
 \rowcolor{tabCabecalho}
 \cab{Item} & \cab{Valor}\\
 \fioCabecalho
-CPU & Intel Core i5-9400F @ 2,90 GHz (6 núcleos, 6 threads)\\
-RAM total & 16.702.504 kB ($\sim$15,93 GB)\\
-RAM disponível (na coleta) & 11.778.048 kB ($\sim$11,23 GB)\\
-Memória virtual total & 19.192.832 kB ($\sim$18,30 GB)\\
-Sistema operacional & Microsoft Windows 10 Pro (v10.0.19045, build 19045, 64 bits)\\
-Compilador & GCC 16.1.0 (MinGW-w64)\\
-Flags de compilação & \texttt{-march=native -O3}\\
+CPU & 13th Gen Intel Core i7-1355U (10 núcleos: 2 de desempenho e 8 de eficiência; 12 threads)\\
+RAM total & 16.454.352 kB ($\sim$15,69 GB)\\
+Sistema operacional & Microsoft Windows 11 Home Single Language (v10.0.26200, 64 bits)\\
+Compilador & GCC 13.2.0 (MinGW-w64, x86\_64-ucrt-posix-seh)\\
+Flags de compilação & \texttt{-std=c11 -O3 -march=native -ffp-contract=off}\\
 \bottomrule
 \end{tabular}
 }
@@ -639,8 +706,28 @@ Flags de compilação & \texttt{-march=native -O3}\\
 
 \subsection{Compilação}
 
+Os comandos abaixo, executados na pasta do EP, geram o programa de
+comparação (\texttt{teste}) e o programa de testes (\texttt{testes}):
+
 \begin{lstlisting}
-gcc -march=native -O3 comparacaoEntreOsDois.c primEP3.c doubleTreeEP3.c gulosoNAOEOPRINCIPAL.c -o teste
+gcc -std=c11 -O3 -march=native -ffp-contract=off comparacaoEntreOsDois.c primEP3.c doubleTreeEP3.c gulosoNAOEOPRINCIPAL.c -o teste -lm
+gcc -std=c11 -O3 -march=native -ffp-contract=off testeEP3.c primEP3.c doubleTreeEP3.c gulosoNAOEOPRINCIPAL.c -o testes -lm
+\end{lstlisting}
+
+A opção \texttt{-ffp-contract=off} impede o compilador de fundir
+multiplicações e somas em uma única instrução (FMA). Sem ela, o
+arredondamento das distâncias pode variar entre processadores e versões
+do compilador; nas distribuições com muitas distâncias iguais (grade e
+círculos), isso muda o desempate e, portanto, a rota. Com a opção, as
+distâncias de todos os experimentos são reproduzíveis em qualquer
+máquina. As execuções são:
+
+\begin{lstlisting}
+.\testes               # testes de corretude
+.\testes desempenho    # Prim original x otimizado
+.\testes otimo         # DT e guloso x otimo exato (forca bruta)
+.\teste 10000          # comparacao rapida, tamanhos ate 10.000
+.\teste                # comparacao completa, ate 100.000 cidades
 \end{lstlisting}
 
 \subsection{Programa de comparação e geração dos testes}
@@ -658,13 +745,21 @@ aleatório uniforme, clusters, grade regular, círculos concêntricos e
 espiral. A função \texttt{nomeTeste} converte cada identificador em uma
 descrição textual utilizada na saída do programa.
 
-\subsubsection{\texttt{segundos}}
+\subsubsection{\texttt{agora} e \texttt{medir}}
 \label{sec:medicao}
 
-A função recebe dois valores de relógio, obtidos antes e depois da
-execução de um algoritmo, e converte a diferença para segundos dividindo
-por \texttt{CLOCKS\_PER\_SEC}. Os tempos apresentados são os valores
-medidos pelo relógio de CPU da biblioteca C.
+A função \texttt{agora} lê um relógio de parede monotônico e de alta
+resolução (no Windows, \texttt{Query\-Performance\-Counter};
+nos demais sistemas, \texttt{clock\_gettime(CLOCK\_MONOTONIC)}). A versão
+anterior usava \texttt{clock()}, cuja resolução no Windows é de 1\,ms e
+que, nesse sistema, mede tempo de parede (e não tempo de CPU); por isso
+os casos pequenos apareciam como $0{,}000$\,s.
+
+A função \texttt{medir} executa o algoritmo repetidamente até acumular
+pelo menos $0{,}25$\,s e informa o \textbf{tempo médio por execução}.
+Assim, instâncias que levam microssegundos são medidas com precisão
+(milhares de repetições), enquanto as de $100.000$ cidades, que levam
+vários segundos, são executadas uma única vez.
 
 \subsubsection{\texttt{validarRota}}
 
@@ -677,16 +772,16 @@ mais de uma vez.
 Como existem $n$ posições, todas dentro do intervalo $[0,n-1]$, e não há
 repetição, a sequência contém cada cidade exatamente uma vez.
 
-\subsubsection{\texttt{liberarRota}}
-
-Libera o vetor de caminho e a estrutura da rota recebida. É utilizada ao
-final de cada comparação para liberar os resultados dos dois algoritmos.
-
 \subsubsection{\texttt{aleatorio01}}
 
 Gera um número pseudoaleatório no intervalo $[0,1]$, dividindo o
 resultado de \texttt{rand()} pelo valor máximo produzido por essa
 função. Esse valor é utilizado na geração das distribuições aleatórias.
+No Windows, \texttt{RAND\_MAX} vale $32.767$; cada coordenada assume,
+portanto, um de $32.768$ valores, com espaçamento de cerca de $0{,}03$
+unidade na região $1000\times1000$. Isso não afeta a validade dos
+experimentos, mas significa que, com $100.000$ cidades, podem surgir
+alguns pontos repetidos.
 
 \subsubsection{\texttt{gerarCidades}}
 
@@ -713,21 +808,33 @@ Preenche as coordenadas de acordo com o cenário selecionado:
 É responsável por executar uma comparação para um cenário e um tamanho
 específicos. Aloca a estrutura de cidades, gera as coordenadas, mede
 separadamente o tempo de \texttt{doubleTree} e de
-\texttt{gulosoVizinhoMaisProximo}, valida as duas rotas e imprime os
-tempos, as distâncias totais e o estado de validade.
+\texttt{gulosoVizinhoMaisProximo} (com \texttt{medir}), valida as duas
+rotas e imprime os tempos, as distâncias totais, o estado de validade e
+o peso da MST.
 
-Quando as duas rotas são válidas, calcula também a diferença entre os
-custos:
+Quando as duas rotas são válidas, calcula as razões
+$D_{\text{DT}}/w(MST)$ e $D_{\text{G}}/w(MST)$ (Seção~\ref{sec:limite})
+e a vantagem percentual do guloso, com a distância do Double Tree como
+denominador:
 \[
-  \Delta=D_{\text{Guloso}}-D_{\text{Double Tree}}.
+  V=100\cdot\frac{D_{\text{DT}}-D_{\text{G}}}{D_{\text{DT}}}.
 \]
-O percentual impresso no programa utiliza a distância do Double Tree
-como denominador:
-\[
-  P=100\cdot\frac{D_{\text{Guloso}}-D_{\text{Double Tree}}}{D_{\text{Double Tree}}}.
-\]
-Assim, um valor negativo indica que o guloso produziu uma rota menor; um
-valor positivo indicaria uma rota menor para o Double Tree.
+Um valor positivo indica que o guloso produziu uma rota menor; um valor
+negativo indicaria uma rota menor para o Double Tree. É a mesma
+convenção da Tabela~\ref{tab:resultados}.\footnote{A versão anterior do
+programa imprimia o percentual com o sinal invertido,
+$(D_{\text{G}}-D_{\text{DT}})/D_{\text{DT}}$, diferente da tabela do
+relatório.} Duas distâncias são consideradas empatadas quando diferem
+em menos de $10^{-9}$ do valor relativo, para que diferenças de
+arredondamento não sejam contadas como vitória.
+
+\subsubsection{\texttt{experimentoInstanciasPequenas}}
+
+Para cada $n\in\{5,10,20,40,80,160\}$, gera $2.000$ instâncias
+aleatórias uniformes (cada uma com semente própria), executa os dois
+algoritmos e conta em quantas cada um encontrou a rota estritamente
+menor. Esse experimento complementa os 30 casos principais, que têm
+uma única instância por combinação (Seção~\ref{sec:dtvence}).
 
 \subsubsection{\texttt{main}}
 
@@ -736,7 +843,77 @@ $1.000$, $10.000$ e $100.000$ cidades) e os cinco tipos de distribuição.
 Para cada combinação, inicializa o gerador pseudoaleatório com uma
 semente calculada a partir do tipo de teste e do tamanho, e chama
 \texttt{executarTeste}. Isso torna cada combinação reproduzível entre
-execuções do programa.
+execuções do programa. Um argumento opcional limita o maior tamanho
+testado (por exemplo, \texttt{.\textbackslash teste 10000}). Ao final,
+o programa imprime um resumo separado por ponto e vírgula, que pode ser
+aberto em uma planilha, e executa o experimento com instâncias
+pequenas.
+
+\subsection{Testes de corretude}
+\label{sec:testes}
+
+O programa \texttt{testeEP3.c} verifica a implementação de forma
+independente, em casos de borda ($n=1$, $2$ e $3$, pontos repetidos,
+todos os pontos coincidentes, pontos colineares, entrada vazia) e em
+550 instâncias aleatórias. As coordenadas inteiras de parte das
+instâncias forçam muitos empates de distância. Para cada instância, são
+verificados:
+
+\begin{enumerate}
+  \item o vetor de pais do Prim é \textbf{idêntico} ao de uma
+    implementação de referência (a versão original, com duas
+    varreduras por passo);
+  \item o peso da MST coincide com o obtido pelo algoritmo de
+    \textbf{Kruskal}, implementado separadamente com \emph{union-find};
+  \item as rotas do Double Tree e do guloso são permutações válidas;
+  \item a rota do Double Tree satisfaz $D_{\text{DT}}\leq 2\,w(MST)$;
+  \item para $n\leq 9$, comparando com o \textbf{ótimo exato} obtido por
+    busca exaustiva: $w(MST)\leq OPT$ e $D_{\text{DT}}\leq 2\,OPT$.
+\end{enumerate}
+
+No ambiente da Tabela~\ref{tab:ambiente}, as $5.754$ verificações
+passaram. O programa termina com código de saída~0 quando todas passam
+e~1 caso contrário, o que permite usá-lo como teste automático.
+
+\subsubsection{Comparação com a tentativa e erro}
+\label{sec:forcabruta}
+
+A busca exaustiva enumera as $(n-1)!$ ordens de visita a partir da
+cidade~0 e custa $O(n!)$, o que a torna inviável já para algumas
+dezenas de cidades (para $n=20$, são cerca de $1{,}2\times10^{17}$
+ordens). Ela serve, porém, como referência exata em instâncias
+pequenas. Executado com o argumento \texttt{otimo}, o programa de
+testes gera 500 instâncias aleatórias uniformes para cada
+$n=5,\dots,10$ e compara as duas heurísticas com o ótimo
+(Tabela~\ref{tab:forcabruta}).
+
+\begin{table}[H]
+\centering
+\caption{Double Tree e vizinho mais próximo comparados com o ótimo exato (força bruta), 500 instâncias por tamanho.}
+\label{tab:forcabruta}
+\rowcolors{2}{tabZebra}{white}
+\begin{tabular}{r r r r r r r}
+\toprule
+\rowcolor{tabCabecalho}
+ & \multicolumn{3}{c}{\cab{Double Tree}} & \multicolumn{3}{c}{\cab{Vizinho mais próximo}}\\
+\rowcolor{tabCabecalho}
+\cab{$n$} & \cab{ótimo} & \cab{$D/OPT$ médio} & \cab{$D/OPT$ máx.} & \cab{ótimo} & \cab{$D/OPT$ médio} & \cab{$D/OPT$ máx.}\\
+\fioCabecalho
+5 & 37{,}0\% & 1{,}055 & 1{,}338 & 45{,}8\% & 1{,}031 & 1{,}215 \\
+6 & 22{,}6\% & 1{,}090 & 1{,}377 & 32{,}6\% & 1{,}059 & 1{,}328 \\
+7 & 13{,}8\% & 1{,}115 & 1{,}432 & 23{,}8\% & 1{,}075 & 1{,}365 \\
+8 & 11{,}6\% & 1{,}137 & 1{,}474 & 22{,}6\% & 1{,}084 & 1{,}446 \\
+9 & 5{,}8\% & 1{,}162 & 1{,}506 & 17{,}4\% & 1{,}099 & 1{,}412 \\
+10 & 5{,}8\% & 1{,}171 & 1{,}452 & 12{,}2\% & 1{,}104 & 1{,}516 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Em todas as 3.000 instâncias, o Double Tree ficou bem abaixo do limite
+teórico de $2\,OPT$: o pior caso observado foi $1{,}51\,OPT$, e a média
+cresce de $5\%$ para $17\%$ acima do ótimo entre $n=5$ e $n=10$. O
+guloso fica, em média, mais perto do ótimo, mas não tem garantia: com
+$n=10$, seu pior caso ($1{,}52$) superou o do Double Tree.
 
 %======================================================================
 \section{Resultados Experimentais e Discussão Científica}
@@ -746,14 +923,14 @@ execuções do programa.
 \subsection{Resultados brutos}
 
 Foram executadas 30 comparações: cinco distribuições geométricas e seis
-tamanhos de entrada. Em todos os casos registrados, as duas rotas foram
-validadas como válidas.
+tamanhos de entrada. Em todos os casos, as duas rotas foram validadas
+como permutações válidas das cidades.
 
-A Tabela~\ref{tab:resultados} apresenta os tempos medidos e as distâncias
-totais. Os tempos iguais a $0{,}000$ correspondem a valores abaixo da
-resolução apresentada na saída com seis casas decimais; não significam
-necessariamente que o algoritmo tenha executado em tempo literalmente
-nulo.
+A Tabela~\ref{tab:resultados} apresenta os tempos médios por execução
+(Seção~\ref{sec:medicao}) e as distâncias totais. As distâncias são
+determinísticas: dependem apenas das sementes e são as mesmas em
+qualquer máquina compilada com as opções da Seção~\ref{sec:ambiente}.
+Os tempos, por outro lado, dependem do computador e da sua carga.
 
 \begin{landscape}
 \small
@@ -765,165 +942,345 @@ nulo.
 \label{tab:resultados}\\
 \toprule
 \rowcolor{tabCabecalho}
-\cab{Distribuição} & \cab{$n$} & \cab{Tempo DT (s)} & \cab{Tempo guloso (s)} & \cab{Distância DT} & \cab{Distância gulosa} & \cab{Vantagem guloso} & \cab{Melhor rota}\\
+\cab{Distribuição} & \cab{$n$} & \cab{Tempo DT} & \cab{Tempo guloso} & \cab{Distância DT} & \cab{Distância gulosa} & \cab{Vantagem guloso} & \cab{Melhor rota}\\
 \fioCabecalho
 \endfirsthead
 \toprule
 \rowcolor{tabCabecalho}
-\cab{Distribuição} & \cab{$n$} & \cab{Tempo DT (s)} & \cab{Tempo guloso (s)} & \cab{Distância DT} & \cab{Distância gulosa} & \cab{Vantagem guloso} & \cab{Melhor rota}\\
+\cab{Distribuição} & \cab{$n$} & \cab{Tempo DT} & \cab{Tempo guloso} & \cab{Distância DT} & \cab{Distância gulosa} & \cab{Vantagem guloso} & \cab{Melhor rota}\\
 \fioCabecalho
 \endhead
 \bottomrule
 \endfoot
-\textbf{Aleatório} & 10 & 0.000 & 0.000 & 3700.427 & 3296.415 & \textcolor{verdeVantagem}{+10,92\%} & Guloso \\
- & 100 & 0.001 & 0.000 & 9893.708 & 9505.586 & \textcolor{verdeVantagem}{+3,92\%} & Guloso \\
- & 500 & 0.001 & 0.000 & 22767.548 & 19656.217 & \textcolor{verdeVantagem}{+13,67\%} & Guloso \\
- & 1\,000 & 0.004 & 0.002 & 32068.580 & 27832.335 & \textcolor{verdeVantagem}{+13,21\%} & Guloso \\
- & 10\,000 & 0.496 & 0.211 & 101450.938 & 87880.962 & \textcolor{verdeVantagem}{+13,38\%} & Guloso \\
- & 100\,000 & 50.266 & 25.663 & 319919.748 & 277713.643 & \textcolor{verdeVantagem}{+13,19\%} & Guloso \\
-\textbf{Clusters} & 10 & 0.000 & 0.000 & 3775.059 & 3756.811 & \textcolor{verdeVantagem}{+0,48\%} & Guloso \\
- & 100 & 0.000 & 0.000 & 5947.183 & 4982.712 & \textcolor{verdeVantagem}{+16,22\%} & Guloso \\
- & 500 & 0.001 & 0.000 & 8979.338 & 7582.848 & \textcolor{verdeVantagem}{+15,55\%} & Guloso \\
- & 1\,000 & 0.005 & 0.001 & 10696.804 & 9559.762 & \textcolor{verdeVantagem}{+10,63\%} & Guloso \\
- & 10\,000 & 0.499 & 0.207 & 26156.243 & 23138.575 & \textcolor{verdeVantagem}{+11,54\%} & Guloso \\
- & 100\,000 & 50.905 & 25.756 & 75206.083 & 65583.300 & \textcolor{verdeVantagem}{+12,80\%} & Guloso \\
-\textbf{Grade} & 10 & 0.000 & 0.000 & 114.142 & 112.361 & \textcolor{verdeVantagem}{+1,56\%} & Guloso \\
- & 100 & 0.000 & 0.000 & 1715.603 & 1080.000 & \textcolor{verdeVantagem}{+37,05\%} & Guloso \\
- & 500 & 0.001 & 0.000 & 9325.575 & 5250.828 & \textcolor{verdeVantagem}{+43,69\%} & Guloso \\
- & 1\,000 & 0.002 & 0.001 & 19055.303 & 10530.208 & \textcolor{verdeVantagem}{+44,74\%} & Guloso \\
- & 10\,000 & 0.220 & 0.100 & 197015.051 & 100980.000 & \textcolor{verdeVantagem}{+48,75\%} & Guloso \\
- & 100\,000 & 20.742 & 9.816 & 1990505.041 & 1004850.029 & \textcolor{verdeVantagem}{+49,52\%} & Guloso \\
-\textbf{Círculos} & 10 & 0.000 & 0.000 & 2087.408 & 2087.408 & \textcolor{eachTeal}{0,00\%} & Empate \\
- & 100 & 0.000 & 0.000 & 8348.296 & 6615.995 & \textcolor{verdeVantagem}{+20,75\%} & Guloso \\
- & 500 & 0.001 & 0.000 & 9737.280 & 6832.264 & \textcolor{verdeVantagem}{+29,83\%} & Guloso \\
- & 1\,000 & 0.002 & 0.001 & 9217.071 & 6857.888 & \textcolor{verdeVantagem}{+25,60\%} & Guloso \\
- & 10\,000 & 0.208 & 0.094 & 9132.778 & 6880.670 & \textcolor{verdeVantagem}{+24,66\%} & Guloso \\
- & 100\,000 & 18.222 & 9.490 & 8859.103 & 6882.934 & \textcolor{verdeVantagem}{+22,31\%} & Guloso \\
-\textbf{Espiral} & 10 & 0.000 & 0.000 & 2136.939 & 2136.939 & \textcolor{eachTeal}{0,00\%} & Empate \\
- & 100 & 0.000 & 0.000 & 6136.327 & 5937.725 & \textcolor{verdeVantagem}{+3,24\%} & Guloso \\
- & 500 & 0.001 & 0.000 & 5952.285 & 5952.285 & \textcolor{eachTeal}{0,00\%} & Empate \\
- & 1\,000 & 0.002 & 0.001 & 5952.733 & 5952.733 & \textcolor{eachTeal}{0,00\%} & Empate \\
- & 10\,000 & 0.208 & 0.098 & 5952.880 & 5952.880 & \textcolor{eachTeal}{0,00\%} & Empate \\
- & 100\,000 & 20.594 & 9.749 & 5952.882 & 5952.882 & \textcolor{eachTeal}{0,00\%} & Empate \\
+\textbf{Aleatório} & 10 & 0{,}43\,\textmu s & 0{,}18\,\textmu s & 3\,700{,}427 & 3\,296{,}415 & \textcolor{verdeVantagem}{+10{,}92\%} & Guloso \\
+ & 100 & 6{,}75\,\textmu s & 7{,}88\,\textmu s & 9\,893{,}708 & 9\,505{,}586 & \textcolor{verdeVantagem}{+3{,}92\%} & Guloso \\
+ & 500 & 301{,}72\,\textmu s & 206{,}27\,\textmu s & 22\,767{,}548 & 19\,656{,}217 & \textcolor{verdeVantagem}{+13{,}67\%} & Guloso \\
+ & 1\,000 & 1{,}05\,ms & 788{,}64\,\textmu s & 32\,068{,}580 & 27\,832{,}335 & \textcolor{verdeVantagem}{+13{,}21\%} & Guloso \\
+ & 10\,000 & 77{,}11\,ms & 138{,}05\,ms & 101\,450{,}938 & 87\,880{,}962 & \textcolor{verdeVantagem}{+13{,}38\%} & Guloso \\
+ & 100\,000 & 8{,}28\,s & 21{,}10\,s & 319\,918{,}737 & 277\,712{,}137 & \textcolor{verdeVantagem}{+13{,}19\%} & Guloso \\
+\textbf{Clusters} & 10 & 0{,}42\,\textmu s & 0{,}18\,\textmu s & 3\,775{,}059 & 3\,756{,}811 & \textcolor{verdeVantagem}{+0{,}48\%} & Guloso \\
+ & 100 & 6{,}70\,\textmu s & 7{,}77\,\textmu s & 5\,947{,}183 & 4\,982{,}712 & \textcolor{verdeVantagem}{+16{,}22\%} & Guloso \\
+ & 500 & 288{,}85\,\textmu s & 210{,}49\,\textmu s & 8\,979{,}338 & 7\,582{,}848 & \textcolor{verdeVantagem}{+15{,}55\%} & Guloso \\
+ & 1\,000 & 1{,}05\,ms & 791{,}39\,\textmu s & 10\,696{,}804 & 9\,559{,}762 & \textcolor{verdeVantagem}{+10{,}63\%} & Guloso \\
+ & 10\,000 & 76{,}40\,ms & 146{,}66\,ms & 26\,156{,}243 & 23\,138{,}575 & \textcolor{verdeVantagem}{+11{,}54\%} & Guloso \\
+ & 100\,000 & 9{,}25\,s & 24{,}72\,s & 75\,204{,}596 & 65\,733{,}761 & \textcolor{verdeVantagem}{+12{,}59\%} & Guloso \\
+\textbf{Grade} & 10 & 0{,}49\,\textmu s & 0{,}20\,\textmu s & 114{,}142 & 112{,}361 & \textcolor{verdeVantagem}{+1{,}56\%} & Guloso \\
+ & 100 & 7{,}34\,\textmu s & 8{,}38\,\textmu s & 1\,715{,}603 & 1\,080{,}000 & \textcolor{verdeVantagem}{+37{,}05\%} & Guloso \\
+ & 500 & 211{,}41\,\textmu s & 191{,}21\,\textmu s & 9\,325{,}575 & 5\,250{,}828 & \textcolor{verdeVantagem}{+43{,}69\%} & Guloso \\
+ & 1\,000 & 763{,}01\,\textmu s & 719{,}98\,\textmu s & 19\,055{,}303 & 10\,530{,}208 & \textcolor{verdeVantagem}{+44{,}74\%} & Guloso \\
+ & 10\,000 & 59{,}72\,ms & 74{,}83\,ms & 197\,015{,}051 & 100\,980{,}000 & \textcolor{verdeVantagem}{+48{,}75\%} & Guloso \\
+ & 100\,000 & 5{,}76\,s & 6{,}75\,s & 1\,990\,505{,}041 & 1\,004\,850{,}029 & \textcolor{verdeVantagem}{+49{,}52\%} & Guloso \\
+\textbf{Círculos} & 10 & 0{,}41\,\textmu s & 0{,}18\,\textmu s & 2\,098{,}393 & 2\,087{,}408 & \textcolor{verdeVantagem}{+0{,}52\%} & Guloso \\
+ & 100 & 6{,}77\,\textmu s & 7{,}83\,\textmu s & 8\,348{,}296 & 6\,615{,}995 & \textcolor{verdeVantagem}{+20{,}75\%} & Guloso \\
+ & 500 & 179{,}86\,\textmu s & 157{,}57\,\textmu s & 9\,815{,}407 & 6\,832{,}264 & \textcolor{verdeVantagem}{+30{,}39\%} & Guloso \\
+ & 1\,000 & 642{,}41\,\textmu s & 647{,}79\,\textmu s & 9\,203{,}509 & 6\,857{,}888 & \textcolor{verdeVantagem}{+25{,}49\%} & Guloso \\
+ & 10\,000 & 51{,}60\,ms & 61{,}61\,ms & 8\,900{,}650 & 6\,880{,}670 & \textcolor{verdeVantagem}{+22{,}69\%} & Guloso \\
+ & 100\,000 & 6{,}90\,s & 6{,}41\,s & 8\,865{,}548 & 6\,882{,}934 & \textcolor{verdeVantagem}{+22{,}36\%} & Guloso \\
+\textbf{Espiral} & 10 & 0{,}46\,\textmu s & 0{,}20\,\textmu s & 2\,136{,}939 & 2\,136{,}939 & \textcolor{eachTeal}{0{,}00\%} & Empate \\
+ & 100 & 6{,}83\,\textmu s & 7{,}77\,\textmu s & 6\,136{,}327 & 5\,937{,}725 & \textcolor{verdeVantagem}{+3{,}24\%} & Guloso \\
+ & 500 & 131{,}91\,\textmu s & 172{,}00\,\textmu s & 5\,952{,}285 & 5\,952{,}285 & \textcolor{eachTeal}{0{,}00\%} & Empate \\
+ & 1\,000 & 481{,}53\,\textmu s & 689{,}03\,\textmu s & 5\,952{,}733 & 5\,952{,}733 & \textcolor{eachTeal}{0{,}00\%} & Empate \\
+ & 10\,000 & 42{,}22\,ms & 65{,}07\,ms & 5\,952{,}880 & 5\,952{,}880 & \textcolor{eachTeal}{0{,}00\%} & Empate \\
+ & 100\,000 & 4{,}59\,s & 6{,}69\,s & 5\,952{,}882 & 5\,952{,}882 & \textcolor{eachTeal}{0{,}00\%} & Empate \\
 \end{longtable}
 \end{landscape}
 
 \noindent\textbf{Como ler a porcentagem:} o valor é calculado por
-$((D_{DT}-D_G)/D_{DT})\times100$. Valores positivos em
-\textcolor{verdeVantagem}{verde} indicam que o guloso encontrou uma rota
-menor; valores negativos em \textcolor{vermelhoDesvantagem}{vermelho}
-indicariam vantagem do Double Tree. Empates aparecem em \textcolor{eachTeal}{azul-petróleo}. A
+$((D_{DT}-D_G)/D_{DT})\times100$, a mesma convenção impressa pelo
+programa. Valores positivos em \textcolor{verdeVantagem}{verde} indicam
+que o guloso encontrou uma rota menor; valores negativos em
+\textcolor{vermelhoDesvantagem}{vermelho} indicariam vantagem do Double
+Tree. Empates aparecem em \textcolor{eachTeal}{azul-petróleo}. A
 porcentagem compara somente o comprimento das rotas, não o tempo de
 execução.
 
 \subsection{Síntese dos resultados}
 
 Considerando as 30 instâncias, o vizinho mais próximo obteve distância
-estritamente menor em \textbf{24 casos}. Em \textbf{seis casos}, os
-algoritmos produziram distâncias iguais. O Double Tree \textbf{não obteve
-uma distância estritamente menor} em nenhuma das instâncias registradas.
+estritamente menor em \textbf{25 casos}. Em \textbf{cinco casos}, todos
+na espiral, os algoritmos produziram exatamente a mesma distância. O
+Double Tree \textbf{não obteve uma distância estritamente menor} em
+nenhuma das 30 instâncias.
 
 O resultado depende fortemente da distribuição. Na grade regular com
 $100.000$ cidades, por exemplo, o guloso produziu distância
-$1.004.850{,}029$, enquanto o Double Tree produziu $1.990.505{,}041$. Na
-espiral, a partir de 500 cidades, os dois métodos produziram exatamente
-as mesmas distâncias apresentadas na saída, aproximadamente
-$5.952{,}3$.
+$1.004.850{,}029$, enquanto o Double Tree produziu $1.990.505{,}041$,
+quase o dobro. Na espiral, a partir de 500 cidades, os dois métodos
+produziram exatamente a mesma rota.
+
+\subsection{Distância ao ótimo: a MST como limite inferior}
+\label{sec:limite}
+
+Comparar os dois algoritmos entre si mostra quem venceu, mas não quão
+longe do ótimo cada um ficou. Calcular a rota ótima é inviável para
+essas instâncias; porém, a primeira etapa da demonstração do fator~2
+(Seção~\ref{sec:doubletree}) fornece um limite inferior gratuito:
+$w(MST)\leq OPT$. Como o Prim já calcula $w(MST)$, para qualquer rota
+de custo $D$ vale
+\[
+  \frac{D}{OPT}\;\leq\;\frac{D}{w(MST)} .
+\]
+A razão $D/w(MST)$ é, portanto, uma estimativa \emph{pessimista} da
+distância ao ótimo: uma razão de $1{,}05$ garante que a rota está no
+máximo $5\%$ acima do ótimo. Para o Double Tree, a garantia teórica
+afirma que essa razão nunca passa de~2.
+
+\begin{table}[H]
+\centering
+\caption{Razão entre a distância da rota e o peso da MST (limite superior para $D/OPT$).}
+\label{tab:razoes}
+\small
+\setlength{\tabcolsep}{4.2pt}
+\rowcolors{3}{tabZebra}{white}
+\begin{tabular}{r cc cc cc cc cc}
+\toprule
+\rowcolor{tabCabecalho}
+ & \multicolumn{2}{c}{\cab{Aleatório}} & \multicolumn{2}{c}{\cab{Clusters}} & \multicolumn{2}{c}{\cab{Grade}} & \multicolumn{2}{c}{\cab{Círculos}} & \multicolumn{2}{c}{\cab{Espiral}}\\
+\rowcolor{tabCabecalho}
+\cab{$n$} & \cab{DT} & \cab{G} & \cab{DT} & \cab{G} & \cab{DT} & \cab{G} & \cab{DT} & \cab{G} & \cab{DT} & \cab{G}\\
+\fioCabecalho
+10 & 1{,}583 & 1{,}411 & 1{,}599 & 1{,}592 & 1{,}268 & 1{,}248 & 1{,}733 & 1{,}724 & 1{,}431 & 1{,}431 \\
+100 & 1{,}529 & 1{,}469 & 1{,}803 & 1{,}511 & 1{,}733 & 1{,}091 & 1{,}323 & 1{,}049 & 1{,}109 & 1{,}073 \\
+500 & 1{,}524 & 1{,}316 & 1{,}715 & 1{,}448 & 1{,}869 & 1{,}052 & 1{,}503 & 1{,}046 & 1{,}072 & 1{,}072 \\
+1\,000 & 1{,}550 & 1{,}345 & 1{,}650 & 1{,}474 & 1{,}907 & 1{,}054 & 1{,}403 & 1{,}046 & 1{,}072 & 1{,}072 \\
+10\,000 & 1{,}562 & 1{,}353 & 1{,}605 & 1{,}420 & 1{,}970 & 1{,}010 & 1{,}353 & 1{,}046 & 1{,}072 & 1{,}072 \\
+100\,000 & 1{,}561 & 1{,}355 & 1{,}580 & 1{,}381 & 1{,}990 & 1{,}005 & 1{,}347 & 1{,}046 & 1{,}072 & 1{,}072 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+A Tabela~\ref{tab:razoes} permite três observações.
+
+\begin{itemize}
+  \item \textbf{A garantia teórica foi respeitada} em todos os casos:
+    a maior razão do Double Tree foi $1{,}99$, na grade com $100.000$
+    cidades.
+  \item \textbf{Na grade, o Double Tree está perto do seu pior caso.}
+    Todas as arestas entre vizinhos valem 10, de modo que há uma
+    quantidade enorme de MSTs possíveis; o desempate por menor índice
+    produz uma árvore em forma de ``pente'' (uma linha com dentes
+    perpendiculares). A pré-ordem percorre cada dente até o fim e
+    depois atravessa de volta, em atalho, até o próximo, quase dobrando
+    o comprimento. Já o guloso, nessa geometria, percorre a grade em
+    ziguezague e fica a menos de $1\%$ do ótimo para $n=100.000$.
+  \item \textbf{Na espiral, os dois algoritmos produzem a mesma rota.}
+    Pontos consecutivos da espiral estão muito mais próximos entre si
+    do que de qualquer ponto da volta vizinha. A MST é, então, o
+    próprio caminho ao longo da curva, e a pré-ordem da DFS a partir da
+    cidade~0 percorre esse caminho na mesma ordem em que o guloso o
+    percorre. A rota é o caminho mais o retorno ao início, cerca de
+    $7\%$ acima da MST.
+\end{itemize}
+
+Nos círculos concêntricos, o guloso percorre cada círculo inteiro antes
+de saltar para o seguinte e fica a menos de $5\%$ do ótimo, enquanto a
+pré-ordem da MST alterna entre ramos da árvore e paga atalhos longos
+entre os círculos.
 
 \subsection{Gráficos de desempenho}
 
-Os três gráficos seguintes utilizam escalas logarítmicas nos dois eixos
-(log-log). Essa representação permite observar o crescimento dos tempos
-em diferentes ordens de grandeza.
+Os gráficos utilizam escalas logarítmicas nos dois eixos (log-log).
+Nessa escala, um crescimento proporcional a $n^2$ aparece como uma reta
+de inclinação~2. Como os tempos agora são médias de várias execuções
+medidas com relógio de alta resolução, também os tamanhos pequenos
+aparecem nos gráficos.
 
-\figuraopcional{figuras/grafico_double_tree.png}{Tempo de execução do Prim seguido do Double Tree, nos cinco cenários, escala log-log.}{fig:dt}{Fonte: Tabela~\ref{tab:resultados}.}
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{loglogaxis}[eixoTempo]
+\addplot+[serieA] coordinates {(10,4.27e-07) (100,6.749e-06) (500,0.00030172) (1000,0.00105333) (10000,0.07710985) (100000,8.2829665)};
+\addlegendentry{Aleatório}
+\addplot+[serieB] coordinates {(10,4.21e-07) (100,6.701e-06) (500,0.000288852) (1000,0.001050572) (10000,0.07639825) (100000,9.2499182)};
+\addlegendentry{Clusters}
+\addplot+[serieC] coordinates {(10,4.85e-07) (100,7.337e-06) (500,0.000211411) (1000,0.000763012) (10000,0.05971758) (100000,5.7585185)};
+\addlegendentry{Grade}
+\addplot+[serieD] coordinates {(10,4.08e-07) (100,6.772e-06) (500,0.000179857) (1000,0.000642407) (10000,0.05160034) (100000,6.9023459)};
+\addlegendentry{Círculos}
+\addplot+[serieE] coordinates {(10,4.62e-07) (100,6.831e-06) (500,0.000131914) (1000,0.000481531) (10000,0.042216483) (100000,4.5872672)};
+\addlegendentry{Espiral}
+\end{loglogaxis}
+\end{tikzpicture}
+\caption[Tempo de execução do Prim seguido do Double Tree]{Tempo de execução do Prim seguido do Double Tree, nos cinco cenários, escala log-log. Fonte: Tabela~\ref{tab:resultados}.}
+\label{fig:dt}
+\end{figure}
 
-\figuraopcional{figuras/grafico_guloso.png}{Tempo de execução do vizinho mais próximo, nos cinco cenários, escala log-log.}{fig:guloso}{Fonte: Tabela~\ref{tab:resultados}.}
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{loglogaxis}[eixoTempo]
+\addplot+[serieA] coordinates {(10,1.77e-07) (100,7.885e-06) (500,0.000206271) (1000,0.000788644) (10000,0.13804745) (100000,21.0973288)};
+\addlegendentry{Aleatório}
+\addplot+[serieB] coordinates {(10,1.77e-07) (100,7.768e-06) (500,0.000210493) (1000,0.000791392) (10000,0.1466569) (100000,24.723929)};
+\addlegendentry{Clusters}
+\addplot+[serieC] coordinates {(10,1.96e-07) (100,8.383e-06) (500,0.00019121) (1000,0.000719977) (10000,0.074829325) (100000,6.7460431)};
+\addlegendentry{Grade}
+\addplot+[serieD] coordinates {(10,1.84e-07) (100,7.835e-06) (500,0.000157575) (1000,0.000647788) (10000,0.06161128) (100000,6.4080808)};
+\addlegendentry{Círculos}
+\addplot+[serieE] coordinates {(10,1.95e-07) (100,7.767e-06) (500,0.000172004) (1000,0.000689033) (10000,0.065066725) (100000,6.6872073)};
+\addlegendentry{Espiral}
+\end{loglogaxis}
+\end{tikzpicture}
+\caption[Tempo de execução do vizinho mais próximo]{Tempo de execução do vizinho mais próximo, nos cinco cenários, escala log-log. Fonte: Tabela~\ref{tab:resultados}.}
+\label{fig:guloso}
+\end{figure}
 
-\figuraopcional{figuras/grafico_comparacao_o_n2.png}{Comparação dos tempos médios para 10.000 e 100.000 cidades e referências de crescimento $O(n^2)$.}{fig:on2}{Fonte: Tabela~\ref{tab:resultados}.}
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{loglogaxis}[eixoTempo]
+\addplot+[serieA] coordinates {(10,4.406e-07) (100,6.878e-06) (500,0.0002227508) (1000,0.0007981704) (10000,0.0614085006) (100000,6.95620326)};
+\addlegendentry{Prim + Double Tree (média)}
+\addplot+[serieE] coordinates {(10,1.858e-07) (100,7.9276e-06) (500,0.0001875106) (1000,0.0007273668) (10000,0.097242336) (100000,13.1325178)};
+\addlegendentry{Vizinho mais próximo (média)}
+\addplot[referencia, domain=10:100000] {6.9562e-10*x^2};
+\addlegendentry{Referência $c\,n^2$ (ajustada em $n=100.000$)}
 
-Nos dois primeiros gráficos (Figuras~\ref{fig:dt} e~\ref{fig:guloso}),
-os pontos com tempo impresso como $0{,}000$ não aparecem, pois uma escala
-logarítmica não representa zero. No terceiro gráfico
-(Figura~\ref{fig:on2}), as médias são calculadas sobre os cinco cenários
-nos tamanhos de 10.000 e 100.000 cidades, nos quais todos os tempos
-foram positivos na saída. As linhas tracejadas são referências teóricas
-$O(n^2)$ normalizadas no ponto de 100.000 cidades; não são medições
-adicionais.
+\end{loglogaxis}
+\end{tikzpicture}
+\caption[Tempos médios dos dois algoritmos e referência quadrática]{Média dos tempos sobre os cinco cenários e referência $c\,n^2$. Fonte: Tabela~\ref{tab:resultados}.}
+\label{fig:on2}
+\end{figure}
 
-Os dados de maior escala são compatíveis com o crescimento quadrático
-esperado. Para o Double Tree, o custo quadrático vem de Prim. Para o
-vizinho mais próximo, vem da busca linear pela próxima cidade em cada
-etapa.
+A partir de $n=1.000$, as curvas seguem a reta de inclinação~2, como
+esperado para dois algoritmos $\Theta(n^2)$. Para $n$ pequeno, os
+custos fixos (alocações e cópias de vetores) pesam mais e as curvas
+ficam acima da reta. A linha tracejada é uma referência teórica, não
+uma medição.
 
-\subsection{Por que o guloso obteve resultados melhores nestes testes?}
+\subsection{Ganho da otimização do Prim}
+\label{sec:ganho}
+
+A Tabela~\ref{tab:ganho} compara, na mesma máquina e com as mesmas
+opções de compilação, a versão original do Prim (duas varreduras
+completas por passo) e a versão otimizada descrita na
+Seção~\ref{sec:prim}. As duas produzem exatamente a mesma árvore; os
+números podem ser reproduzidos com \texttt{.\textbackslash testes
+desempenho}.
+
+\begin{table}[H]
+\centering
+\caption{Prim original $\times$ Prim otimizado (tempo de uma execução, em segundos).}
+\label{tab:ganho}
+\rowcolors{2}{tabZebra}{white}
+\begin{tabular}{l r r r r}
+\toprule
+\rowcolor{tabCabecalho}
+\cab{Pontos} & \cab{$n$} & \cab{Original (s)} & \cab{Otimizado (s)} & \cab{Ganho}\\
+\fioCabecalho
+Aleatório & 10\,000 & 0{,}354 & 0{,}081 & 4{,}4$\times$ \\
+Aleatório & 30\,000 & 3{,}534 & 0{,}713 & 5{,}0$\times$ \\
+Aleatório & 100\,000 & 44{,}340 & 8{,}935 & 5{,}0$\times$ \\
+Grade & 10\,000 & 0{,}114 & 0{,}055 & 2{,}1$\times$ \\
+Grade & 30\,000 & 0{,}978 & 0{,}511 & 1{,}9$\times$ \\
+Grade & 100\,000 & 10{,}590 & 8{,}684 & 1{,}2$\times$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Dois efeitos explicam os números. O primeiro é a \textbf{redução do
+trabalho}: cerca de $n^2/2$ iterações em vez de $2n^2$, com acesso
+sequencial a vetores separados de coordenadas. O segundo é a
+\textbf{previsão de desvios} do processador. Na versão original, o teste
+\texttt{distancia < menorDistancia[i]} é imprevisível em pontos
+aleatórios (cada distância nova é ``sorteada''), e cada erro de
+previsão custa dezenas de ciclos; na grade, o mesmo teste segue um
+padrão regular e é bem previsto. Por isso o tempo original variava
+tanto com a distribuição (cerca de quatro vezes mais lento no aleatório
+do que na grade), e não por ruído de medição, como se supôs na versão
+anterior deste relatório. A versão otimizada é muito menos sensível à
+distribuição, de modo que o ganho é maior justamente onde o original
+era mais lento. (Os tempos de $n=100.000$ desta tabela e
+os da Tabela~\ref{tab:resultados} vêm de execuções diferentes, o que
+explica pequenas diferenças entre eles.)
+
+\subsection{Por que o guloso obteve rotas menores nestes testes?}
 
 O vizinho mais próximo constrói a rota com base na distância entre a
 cidade atual e as cidades ainda não visitadas. Em distribuições
-espaciais como a grade e os clusters, essa regra local frequentemente
-permite continuar em regiões próximas antes de realizar deslocamentos
-maiores.
+espaciais como a grade, os círculos e os clusters, essa regra local
+frequentemente permite continuar em regiões próximas antes de realizar
+deslocamentos maiores.
 
 O Double Tree, por outro lado, não escolhe diretamente a próxima cidade
 da rota com base na menor distância a partir da posição atual. Primeiro
 constrói uma MST e depois utiliza a ordem de uma DFS para visitar os
-vértices. A MST minimiza a soma das arestas da árvore, mas essa ordem de
-visita não minimiza necessariamente o ciclo produzido após os atalhos.
-Portanto, uma árvore de peso baixo não implica que a pré-ordem da DFS
-gere uma rota melhor que a heurística gulosa.
+vértices. A MST minimiza a soma das arestas da árvore, mas a ordem de
+visita não minimiza o ciclo produzido após os atalhos: cada vez que a
+DFS termina um ramo, a rota ``salta'' de volta para o próximo ramo, e
+esses saltos podem custar quase tanto quanto refazer o ramo. É
+exatamente o que acontece na grade, como discutido na
+Seção~\ref{sec:limite}.
 
-A diferença ficou especialmente evidente na grade regular. Para
-$100.000$ cidades, a distância do guloso foi aproximadamente
-\textbf{49,52\% menor} que a distância do Double Tree, quando a diferença
-é expressa em relação ao custo do Double Tree. Isso mostra que, nessa
-instância, a ordem produzida pela DFS gerou deslocamentos adicionais
-relevantes.
+\subsection{Em quais situações o Double Tree pode ganhar?}
+\label{sec:dtvence}
 
-Na distribuição em espiral, os custos foram iguais a partir de 500
-cidades. A estrutura geométrica e a ordem dos pontos fizeram com que os
-dois procedimentos produzissem ciclos de mesmo comprimento nos valores
-registrados. Esse resultado é específico dessa construção e não
-significa que os algoritmos sejam equivalentes em espirais em geral.
+Os 30 casos principais têm uma única instância por combinação. Para
+verificar se o Double Tree chega a vencer, o programa de comparação
+também gera 2.000 instâncias aleatórias uniformes para cada tamanho
+pequeno (Tabela~\ref{tab:pequenas}).
 
-\subsection{Em quais situações o Double Tree poderia ganhar?}
+\begin{table}[H]
+\centering
+\caption{Instâncias aleatórias pequenas: porcentagem de vitórias de cada algoritmo (2.000 instâncias por tamanho).}
+\label{tab:pequenas}
+\rowcolors{2}{tabZebra}{white}
+\begin{tabular}{r r r r r}
+\toprule
+\rowcolor{tabCabecalho}
+\cab{$n$} & \cab{DT vence} & \cab{Guloso vence} & \cab{Empate} & \cab{Maior vitória do DT}\\
+\fioCabecalho
+5 & 20{,}3\% & 34{,}3\% & 45{,}4\% & 27{,}2\% \\
+10 & 25{,}6\% & 58{,}8\% & 15{,}7\% & 28{,}4\% \\
+20 & 25{,}5\% & 73{,}5\% & 0{,}9\% & 24{,}9\% \\
+40 & 20{,}9\% & 79{,}0\% & 0{,}0\% & 15{,}6\% \\
+80 & 11{,}9\% & 88{,}1\% & 0{,}0\% & 15{,}7\% \\
+160 & 4{,}7\% & 95{,}3\% & 0{,}0\% & 9{,}2\% \\
+\bottomrule
+\end{tabular}
+\end{table}
 
-O Double Tree pode produzir uma rota menor que o vizinho mais próximo
-quando a ordem de visita induzida pela MST e pela DFS evita escolhas
-locais que levam o guloso a realizar deslocamentos longos ou a deixar
-regiões distantes para o final.
-
-O vizinho mais próximo pode ficar preso a uma sequência de decisões
-localmente atraentes: uma escolha que parece boa em um passo pode deixar
-uma cidade isolada para uma etapa posterior, exigindo um deslocamento
-grande. Em uma instância cuidadosamente construída para esse
-comportamento, a rota do guloso pode ser pior que a rota obtida por
-atalhos no passeio da MST.
-
-\textbf{Ressalva:} não foi observado um caso de vitória estrita do
-Double Tree nos 30 testes apresentados. Assim, a possibilidade de vitória
-é uma consequência da diferença entre as estratégias, não uma conclusão
-demonstrada por esta amostra experimental.
+O Double Tree \textbf{vence com frequência em instâncias pequenas}:
+cerca de uma em cada quatro para $n$ entre 10 e 20, com rotas até
+$28\%$ mais curtas que as do guloso. A frequência cai à medida que $n$
+cresce (menos de $5\%$ das instâncias para $n=160$). A explicação é a
+fraqueza típica do guloso: ele pode deixar uma cidade isolada para o
+final e pagar um deslocamento longo para buscá-la, e, com poucas
+cidades, um único deslocamento desses pesa muito no total. Com muitas
+cidades, esses erros se diluem, enquanto os atalhos da pré-ordem do
+Double Tree se acumulam em todos os ramos da árvore.
 
 \subsection{Comparação de tempo}
 
-Nos tamanhos de 10.000 e 100.000 cidades, o vizinho mais próximo foi
-mais rápido em todos os cenários. Para 100.000 cidades, o tempo do
-Double Tree variou de 18,222\,s a 50,905\,s; o do guloso variou de
-9,490\,s a 25,756\,s.
+Com a implementação otimizada do Prim, a relação de tempo se inverteu
+em relação à versão anterior deste relatório. Para $n=100.000$, o
+Double Tree foi mais rápido em quatro das cinco distribuições: por
+exemplo, $8{,}28$\,s contra $21{,}10$\,s no aleatório e $9{,}25$\,s
+contra $24{,}72$\,s nos clusters. Apenas nos círculos o guloso foi um
+pouco mais rápido ($6{,}41$\,s contra $6{,}90$\,s). Já com 10 cidades
+o guloso é mais rápido (cerca de $0{,}18$\,\textmu s contra
+$0{,}43$\,\textmu s), porque o Double Tree faz mais alocações de
+memória (cinco vetores no Prim e outros quatro na construção da rota),
+e esse custo fixo domina quando há pouco trabalho a fazer.
 
-Embora ambos tenham complexidade assintótica $O(n^2)$, isso não implica
-tempos iguais. O Double Tree executa Prim e, depois, constrói a
-estrutura de filhos, realiza DFS e calcula a rota. O vizinho mais
-próximo realiza a busca pelo próximo vértice e calcula o ciclo. As
-operações, constantes de execução e padrões de acesso à memória são
-diferentes.
+Ambos são $\Theta(n^2)$, mas com constantes diferentes. O Prim
+otimizado percorre apenas os vértices que restam, cerca de $n^2/2$
+iterações. O guloso percorre, a cada passo, todos os $n$ vértices e
+testa \texttt{visitada[i]}: são $n^2$ testes, embora só cerca de
+$n^2/2$ distâncias sejam calculadas. Além disso, nas distribuições
+aleatórias, as cidades já visitadas ficam espalhadas pelo vetor, e o
+teste \texttt{!visitada[i]} se torna um desvio imprevisível para o
+processador. Por isso o guloso leva $21{,}10$\,s no aleatório e apenas
+$6{,}75$\,s na grade, onde as cidades visitadas formam blocos
+contíguos. É o mesmo fenômeno que tornava lento o Prim original
+(Seção~\ref{sec:ganho}), e a mesma técnica da lista compacta de
+vértices restantes o eliminaria também no guloso.
 
-\textbf{Ressalva metodológica:} os tempos variaram também entre as
-distribuições para um mesmo tamanho. Como foi registrada uma execução
-por combinação, essa variação deve ser interpretada como resultado
-observado nessas execuções, e não como uma estimativa estatística
-definitiva. Repetições e médias poderiam reduzir a influência de
-variações ocasionais do ambiente de execução.
+\textbf{Ressalva metodológica:} os tempos de $100.000$ cidades vêm de
+uma única execução, e o processador utilizado tem núcleos de desempenho
+e de eficiência, além de reduzir a frequência quando aquece. Variações
+de alguns décimos de segundo entre execuções são, portanto, esperadas;
+as distâncias, por outro lado, não variam.
 
 \subsection{Pontos positivos e negativos}
 
@@ -936,12 +1293,12 @@ variações ocasionais do ambiente de execução.
 \cab{Método} & \cab{Pontos positivos} & \cab{Limitações}\\
 \fioCabecalho
 Prim + Double Tree &
-Possui garantia teórica de aproximação de fator 2 para o PCV métrico; parte de uma MST, que é uma estrutura global de custo mínimo; produz uma rota válida por atalhos no passeio da árvore. &
-A ordem de DFS não é necessariamente uma boa ordem para o ciclo; a garantia permite que a rota tenha custo até duas vezes o ótimo; na implementação analisada, a etapa de Prim domina o tempo.\\
+Possui garantia teórica de aproximação de fator 2 para o PCV métrico; parte de uma MST, cujo peso também serve como limite inferior do ótimo; venceu o guloso em até um quarto das instâncias aleatórias pequenas; com a implementação otimizada, foi mais rápido que o guloso nos maiores casos. &
+A ordem de DFS não é necessariamente uma boa ordem para o ciclo; nas 30 instâncias principais não venceu nenhuma vez e, na grade, chegou perto do limite de duas vezes o ótimo.\\
 \midrule
 Vizinho mais próximo &
-É simples de implementar; constrói a rota diretamente; apresentou menores distâncias e menores tempos na maioria ou totalidade dos cenários medidos, sem contar empates. &
-As decisões são locais; uma escolha pode prejudicar etapas posteriores; não possui garantia geral de aproximação constante para o PCV métrico.\\
+É simples de implementar; constrói a rota diretamente; obteve rotas menores em 25 das 30 instâncias principais (e empatou nas outras cinco), ficando a menos de $5\%$ do ótimo na grade e nos círculos com 100 ou mais cidades. &
+As decisões são locais; uma escolha pode prejudicar etapas posteriores; não possui garantia de aproximação constante (razão $\Theta(\log n)$ no pior caso).\\
 \bottomrule
 \end{tabularx}
 \caption{Síntese qualitativa dos dois métodos.}
@@ -951,36 +1308,54 @@ As decisões são locais; uma escolha pode prejudicar etapas posteriores; não p
 \subsection{Conclusão}
 
 A implementação de Prim combinada com Double Tree produz uma solução
-aproximada para o PCV euclidiano com garantia teórica de fator~2. Sua
-principal vantagem é oferecer um limite matemático para a qualidade da
-solução, algo que não é fornecido pelo vizinho mais próximo na forma
-implementada.
+aproximada para o PCV euclidiano com garantia teórica de fator~2,
+verificada experimentalmente: em nenhum caso a rota passou de duas
+vezes o peso da MST. A otimização do Prim manteve exatamente a mesma
+árvore e reduziu o tempo em até cinco vezes, sem alterar a complexidade
+$\Theta(n^2)$.
 
-Nos testes realizados, entretanto, o vizinho mais próximo obteve
-resultados empíricos melhores: venceu estritamente em 24 das 30
-instâncias e empatou nas outras seis. Também apresentou menor tempo nos
-testes de maior porte. A diferença foi particularmente expressiva na
-grade regular, enquanto a espiral produziu empates a partir de 500
-cidades.
+Nos testes realizados, entretanto, o vizinho mais próximo obteve rotas
+melhores: venceu estritamente em 25 das 30 instâncias principais e
+empatou nas outras cinco. O limite inferior dado pela MST mostra que, na
+grade e nos círculos com 100 ou mais cidades, a rota gulosa está a
+menos de $5\%$ do ótimo, enquanto o Double Tree chegou a quase o dobro
+na grade. Em
+instâncias aleatórias pequenas, porém, o Double Tree venceu em até um
+quarto dos casos.
 
 Esses resultados não invalidam a garantia do Double Tree. A garantia é
-uma afirmação sobre a relação entre a rota produzida e a solução ótima;
-ela não afirma que o Double Tree sempre supera outras heurísticas. Da
-mesma forma, o bom desempenho do vizinho mais próximo nas instâncias
-avaliadas não constitui uma garantia para instâncias futuras.
+uma afirmação sobre o pior caso, ou seja, sobre a relação entre a rota
+produzida e a solução ótima em \emph{qualquer} instância; ela não
+afirma que o Double Tree supera outras heurísticas nas instâncias
+típicas. Da mesma forma, o bom desempenho do vizinho mais próximo nas
+instâncias avaliadas não constitui uma garantia: existem instâncias em
+que sua rota é $\Theta(\log n)$ vezes pior que a ótima.
 
 Conclui-se que os dois algoritmos representam abordagens diferentes: o
 Double Tree oferece uma \textbf{garantia teórica} para custos métricos,
 enquanto o vizinho mais próximo apresentou \textbf{melhor desempenho
-prático} neste conjunto de experimentos. A escolha entre eles depende de
-se priorizar uma garantia formal de qualidade ou o desempenho observado
-nas instâncias consideradas.
+prático} neste conjunto de experimentos. Os caminhos naturais de
+melhoria são os da Seção~\ref{sec:alternativas}: uma MST em
+$O(n\log n)$ pela triangulação de Delaunay e uma pós-otimização
+\emph{2-opt}, que combinaria a garantia do Double Tree com rotas
+competitivas na prática.
 
 %======================================================================
 \section{Fontes e Referências}
 %======================================================================
 
 \begin{itemize}
+  \item T.~H. Cormen, C.~E. Leiserson, R.~L. Rivest e C.~Stein.
+    \emph{Algoritmos: teoria e prática}. 3.~ed. Rio de Janeiro:
+    Elsevier, 2012. Cap.~23 (árvores geradoras mínimas) e Seção~35.2
+    (o problema do caixeiro-viajante: \textsc{Approx-TSP-Tour}).
+  \item D.~J. Rosenkrantz, R.~E. Stearns e P.~M. Lewis~II. An analysis
+    of several heuristics for the traveling salesman problem.
+    \emph{SIAM Journal on Computing}, v.~6, n.~3, p.~563--581, 1977.
+  \item N.~Christofides. \emph{Worst-case analysis of a new heuristic
+    for the travelling salesman problem}. Relatório técnico 388,
+    Graduate School of Industrial Administration, Carnegie Mellon
+    University, 1976.
   \item P.~Feofiloff. \emph{Algoritmo de Prim para árvore geradora
     barata num grafo}. Algoritmos para Grafos, Instituto de Matemática e
     Estatística, Universidade de São Paulo, 2019. \urlPrimFeofiloff.
