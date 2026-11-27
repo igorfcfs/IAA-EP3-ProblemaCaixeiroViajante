@@ -4,11 +4,18 @@
 #include "ep3.h"
 
 /*
- *CÓDIGO ORIGINAL DO CHAT GPT, SERVE APENAS COMO MÉTRICA PARA COMPARAR COM O ALGORITMO ORIGINAL (primEP3.c e doubleTreeEP3.c), NÃO LEVAR EM CONSIDERAÇÃO NA CORREÇÃO
+ * CODIGO ORIGINAL DO CHAT GPT, SERVE APENAS COMO METRICA PARA COMPARAR COM
+ * O ALGORITMO ORIGINAL (primEP3.c e doubleTreeEP3.c), NAO LEVAR EM
+ * CONSIDERACAO NA CORRECAO.
+ *
+ * Ajustes feitos para a comparacao ser justa com o Prim:
+ *  - a busca do vizinho mais proximo compara distancias AO QUADRADO
+ *    (a raiz e monotona, logo a cidade escolhida e a mesma; o Prim ja
+ *    fazia isso, e o guloso pagava uma sqrt por comparacao);
+ *  - adaptado a estrutura Cidades com vetor dinamico.
  */
-Rota *gulosoVizinhoMaisProximo(Cidades *cidadesArr) {
-    if (cidadesArr == NULL || cidadesArr->numCidades <= 0 ||
-        cidadesArr->numCidades > N)
+Rota *gulosoVizinhoMaisProximo(const Cidades *cidadesArr) {
+    if (cidadesArr == NULL || cidadesArr->numCidades <= 0)
         return NULL;
 
     int n = cidadesArr->numCidades;
@@ -30,18 +37,19 @@ Rota *gulosoVizinhoMaisProximo(Cidades *cidadesArr) {
     rota->caminho[0] = atual;
     visitada[atual] = 1;
     rota->tamanho = 1;
+    rota->pesoMST = 0.0;
 
     for (int passo = 1; passo < n; passo++) {
         int proxima = -1;
         double menor = DBL_MAX;
+        const double ax = cidadesArr->cidades[atual].x;
+        const double ay = cidadesArr->cidades[atual].y;
 
         for (int i = 0; i < n; i++) {
             if (!visitada[i]) {
-                double dx = cidadesArr->cidades[atual].x -
-                            cidadesArr->cidades[i].x;
-                double dy = cidadesArr->cidades[atual].y -
-                            cidadesArr->cidades[i].y;
-                double d = sqrt(dx * dx + dy * dy);
+                double dx = ax - cidadesArr->cidades[i].x;
+                double dy = ay - cidadesArr->cidades[i].y;
+                double d = dx * dx + dy * dy;
 
                 if (d < menor) {
                     menor = d;
